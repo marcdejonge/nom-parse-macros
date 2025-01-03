@@ -1,0 +1,36 @@
+[package]
+name = "nom-parse-macros"
+description = "Procedural macros for generating parser functions for the nom libary"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+keywords = ["nom", "parser", "parsable"]
+categories = ["parsing"]
+authors = ["Marc de Jonge <marcdejonge@gmail.com>"]
+homepage = "https://github.com/marcdejonge/nom-parse-macros"
+repository = "https://github.com/marcdejonge/nom-parse-macros.git"
+readme = "README.md"
+edition = "2021"
+
+include = [
+    "src/*.rs",
+    "LICENSE-*",
+    "README.md",
+]
+
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[[example]]
+name = "basic_struct_with_members"
+path = "examples/basic_struct_with_members.rs"
+
+
+[dependencies]
+quote = "1.0"
+proc-macro2 = "1.0"
+syn = { version = "2.0", features = ["extra-traits", "full"] }
+
+[dev-dependencies]
+nom-parse-trait = "0.1"
+nom = "7.1"
