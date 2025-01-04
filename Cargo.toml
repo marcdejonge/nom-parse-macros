@@ -30,6 +30,7 @@ path = "examples/basic_struct_with_members.rs"
 quote = "1.0"
 proc-macro2 = "1.0"
 syn = { version = "2.0", features = ["extra-traits", "full"] }
+itertools = "0.14.0"
 
 [dev-dependencies]
 nom-parse-trait = "0.1"
