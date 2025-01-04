@@ -1,4 +1,5 @@
 use crate::fields::Field;
+use crate::nom_packages::apply_nom_namespaces;
 use itertools::Itertools;
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, ToTokens};
@@ -26,10 +27,7 @@ impl ParseSettings {
                             _ => return Err(syn::Error::new(ident.span(), "Missing '='")),
                         }
 
-                        let expr = token_iter
-                            .next()
-                            .ok_or_else(|| syn::Error::new(ident.span(), "Missing expression"))?;
-                        parse::<syn::Expr>(expr.into_token_stream().into())
+                        parse::<syn::Expr>(token_iter.collect::<TokenStream>().into())
                             .map(|expr| Self::Split(expr))
                     }
                     "match" => Ok(Self::Match("".to_string())),
@@ -47,13 +45,16 @@ impl ParseSettings {
     pub fn generate_parse_expressions(&self, fields: &[Field]) -> Vec<TokenStream> {
         match self {
             ParseSettings::Split(expr) => {
-                let expr =
-                    quote! { let (input, _) = nom::character::complete::#expr(input)?; };
-                fields
-                    .iter()
-                    .map(|field| field.generate_expression().into_token_stream())
-                    .intersperse(expr)
-                    .collect()
+                let mut expr = expr.clone();
+                apply_nom_namespaces(&mut expr);
+                let expr = quote! { let (input, _) = #expr.parse(input)?; };
+                Itertools::intersperse(
+                    fields
+                        .iter()
+                        .map(|field| field.generate_expression().into_token_stream()),
+                    expr,
+                )
+                .collect()
             }
             ParseSettings::Match(literal) => {
                 vec![syn::Error::new(literal.span(), "Match not yet implemented").to_compile_error()]

@@ -1,5 +1,6 @@
 mod settings;
 mod fields;
+mod nom_packages;
 
 extern crate proc_macro;
 use proc_macro::TokenStream;
@@ -28,6 +29,8 @@ pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {
 
         impl nom_parse_trait::ParseFrom<&str> for #name {
             fn parse(input: &str) -> nom::IResult<&str, Self> {
+                use nom::Parser;
+
                 let mut input = input;
                 #(#expressions)*
                 Ok((input, Self { #(#names),* }))
