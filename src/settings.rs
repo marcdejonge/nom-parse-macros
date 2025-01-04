@@ -1,54 +1,24 @@
 use crate::fields::Field;
 use crate::nom_packages::apply_nom_namespaces;
 use itertools::Itertools;
-use proc_macro2::token_stream::IntoIter;
-use proc_macro2::{Ident, TokenStream, TokenTree};
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::spanned::Spanned;
-use syn::{parse, Error, Lit};
+use syn::parse::{Parse, ParseStream};
+use syn::{parse, Error, Expr, LitStr, Token};
 
 pub enum ParseSettings {
-    Split(syn::Expr),
-    Match(syn::LitStr),
+    Split(Expr),
+    Match(LitStr),
 }
 
 impl ParseSettings {
-    pub fn from(attrs: TokenStream) -> Result<Self, Error> {
-        let mut token_iter = attrs.into_iter();
-        let first = token_iter.next();
-        match first {
-            None => Ok(Self::Split(syn::parse_quote! { line_ending })),
-            Some(TokenTree::Ident(ident)) => {
-                let name = ident.to_string();
-                match_equal_sign(&mut token_iter, &ident)?;
+    pub fn from(attrs: TokenStream) -> syn::Result<Self> {
+        let arguments = parse::<Arguments>(attrs.into())?;
 
-                match name.as_str() {
-                    "split" => parse::<syn::Expr>(token_iter.collect::<TokenStream>().into())
-                        .map(|expr| Self::Split(expr)),
-                    "match" => Self::from_literal(parse::<syn::Lit>(
-                        token_iter.collect::<TokenStream>().into(),
-                    )?),
-                    _ => Err(Error::new(
-                        ident.span(),
-                        "Unknown attribute name, expected 'split' or 'match'",
-                    )),
-                }
-            }
-            Some(TokenTree::Literal(literal)) => {
-                Self::from_literal(parse::<syn::Lit>(literal.into_token_stream().into())?)
-            }
-            _ => Err(Error::new(
-                first.span(),
-                "Expected literal matching string or attributes as configuration",
-            )),
-        }
-    }
-
-    fn from_literal(lit: Lit) -> Result<ParseSettings, Error> {
-        if let Lit::Str(lit) = lit {
-            Ok(Self::Match(lit))
-        } else {
-            Err(Error::new(lit.span(), "Expected string literal"))
+        match arguments {
+            Arguments::Split { expr, .. } => Ok(ParseSettings::Split(expr)),
+            Arguments::Match { lit, .. } => Ok(ParseSettings::Match(lit)),
+            Arguments::LiteralMatch { lit } => Ok(ParseSettings::Match(lit)),
         }
     }
 
@@ -95,10 +65,53 @@ impl ParseSettings {
     }
 }
 
-fn match_equal_sign(token_iter: &mut IntoIter, ident: &Ident) -> Result<(), Error> {
-    match token_iter.next() {
-        None => Err(Error::new(ident.span(), "Missing '='")),
-        Some(TokenTree::Punct(punct)) if punct.as_char() == '=' => Ok(()),
-        _ => Err(Error::new(ident.span(), "Missing '='")),
+mod keywords {
+    use syn::custom_keyword;
+
+    custom_keyword!(split);
+}
+
+#[allow(dead_code)]
+enum Arguments {
+    Split {
+        token: keywords::split,
+        eq_token: Token![=],
+        expr: Expr,
+    },
+    Match {
+        token: Token![match],
+        eq_token: Token![=],
+        lit: LitStr,
+    },
+    LiteralMatch {
+        lit: LitStr,
+    },
+}
+
+impl Parse for Arguments {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(keywords::split) {
+            let token = input.parse::<keywords::split>()?;
+            let eq_token = input.parse::<Token![=]>()?;
+            let expr = input.parse::<Expr>()?;
+            Ok(Arguments::Split {
+                token,
+                eq_token,
+                expr,
+            })
+        } else if lookahead.peek(Token![match]) {
+            let token = input.parse::<Token![match]>()?;
+            let eq_token = input.parse::<Token![=]>()?;
+            let lit = input.parse::<LitStr>()?;
+            Ok(Arguments::Match {
+                token,
+                eq_token,
+                lit,
+            })
+        } else {
+            let lit = input.parse::<LitStr>()?;
+            Ok(Arguments::LiteralMatch { lit })
+        }
     }
 }
