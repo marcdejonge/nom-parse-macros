@@ -1,7 +1,7 @@
-use nom_parse_macros::parse_from;
+use nom_parse_macros::parse_match;
 use nom_parse_trait::ParseFrom;
 
-#[parse_from("({},{},{})")]
+#[parse_match("({},{},{})")]
 #[derive(Debug, PartialEq)]
 struct Vector3 {
     x: u32,
