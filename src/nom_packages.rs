@@ -2,10 +2,10 @@ use proc_macro2::Span;
 use quote::quote_spanned;
 use syn::__private::IntoSpans;
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::{
     parse, parse_str, Expr, ExprArray, ExprCall, ExprLit, ExprPath, ExprTuple, Lit, Path, Result,
 };
-use syn::spanned::Spanned;
 
 const NOM_FUNCTIONS: phf::Map<&'static str, (&'static str, &'static [bool])> = phf::phf_map! {
     // From the nom::branch module
@@ -104,7 +104,10 @@ pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
     match expr {
         Expr::Block(block_expr) => {
             if block_expr.block.stmts.is_empty() {
-                *expr = parse::<Expr>(quote_spanned! { block_expr.span() => nom_parse_trait::ParseFrom::parse }.into())?;
+                *expr = parse::<Expr>(
+                    quote_spanned! { block_expr.span() => nom_parse_trait::ParseFrom::parse }
+                        .into(),
+                )?;
                 Ok(())
             } else {
                 Err(syn::Error::new_spanned(
@@ -112,7 +115,7 @@ pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
                     "Only supporting building nom parsers from function calls and string literals",
                 ))
             }
-        },
+        }
         Expr::Call(call) => parse_call(call),
         Expr::Lit(lit_expr) => match &lit_expr.lit {
             Lit::Str(value) => {
@@ -128,7 +131,8 @@ pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
                 Ok(())
             }
             Lit::Char(value) => {
-                *expr = generate_match_expression(value.value().to_string().as_bytes(), value.span());
+                *expr =
+                    generate_match_expression(value.value().to_string().as_bytes(), value.span());
                 Ok(())
             }
             _ => Err(syn::Error::new_spanned(
@@ -140,7 +144,9 @@ pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
         Expr::Tuple(ExprTuple { elems, .. }) => {
             if elems.is_empty() {
                 // An empty tuple is used as a shortcut for the ParseFrom parser
-                *expr = parse::<Expr>(quote_spanned! { elems.span() => nom_parse_trait::ParseFrom::parse }.into())?;
+                *expr = parse::<Expr>(
+                    quote_spanned! { elems.span() => nom_parse_trait::ParseFrom::parse }.into(),
+                )?;
             } else {
                 // Tuples are assumed to be all parsers
                 for elem in elems.iter_mut() {

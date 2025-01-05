@@ -1,8 +1,7 @@
 use crate::fields::Field;
 use crate::nom_packages::generate_match_expression;
-use itertools::Itertools;
 use proc_macro2::TokenStream;
-use quote::{quote_spanned, ToTokens};
+use quote::quote_spanned;
 use syn::{Error, LitStr, Result};
 
 pub fn parse_string_match(fields: &[Field], literal: LitStr) -> Result<Vec<TokenStream>> {
@@ -22,11 +21,19 @@ pub fn parse_string_match(fields: &[Field], literal: LitStr) -> Result<Vec<Token
         ));
     }
 
-    Ok(Itertools::interleave(
-        parts.into_iter(),
-        fields
-            .iter()
-            .map(|field| field.generate_expression().into_token_stream()),
-    )
-    .collect())
+    let mut result = vec![parts[0].clone()];
+    for index in 0..fields.len() {
+        if let Some(expr) = fields[index].generate_expression() {
+            result.push(expr);
+        }
+        result.push(parts[index + 1].clone());
+    }
+
+    for field in fields {
+        if let Some(expr) = field.generate_derived_expression() {
+            result.push(expr);
+        }
+    }
+
+    Ok(result)
 }

@@ -29,6 +29,10 @@ path = "examples/basic_struct_with_members.rs"
 name = "use_matching_string"
 path = "examples/use_matching_string.rs"
 
+[[example]]
+name = "derived_fields"
+path = "examples/derived_fields.rs"
+
 [dependencies]
 quote = "1.0"
 proc-macro2 = "1.0"
