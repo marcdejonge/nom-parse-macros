@@ -25,6 +25,13 @@ path = "src/lib.rs"
 name = "basic_struct_with_members"
 path = "examples/basic_struct_with_members.rs"
 
+[[example]]
+name = "use_matching_string"
+path = "examples/use_matching_string.rs"
+
+[[example]]
+name = "use_prefix_and_suffix"
+path = "examples/use_prefix_and_suffix.rs"
 
 [dependencies]
 quote = "1.0"

@@ -1,10 +1,13 @@
-use syn::{Expr, Path, Stmt};
+use proc_macro2::Span;
+use quote::quote_spanned;
+use syn::{parse, parse_str, Expr, ExprArray, ExprLit, Lit, Path, Stmt};
+use syn::__private::IntoSpans;
 
 const NOM_FUNCTIONS: phf::Map<&'static str, &'static str> = phf::phf_map! {
     // From the nom::branch module
     "alt" => "nom::branch::alt",
     // From the nom::bytes::complete module
-    "tag" => "nom::bytes::complete::tag",
+    // "tag" => "nom::bytes::complete::tag", tag is no longer explicitly supported, we use a raw string literal instead
     "tag_no_case" => "nom::bytes::complete::tag_no_case",
     "is_not" => "nom::bytes::complete::is_not",
     "is_a" => "nom::bytes::complete::is_a",
@@ -90,6 +93,7 @@ const NOM_FUNCTIONS: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "terminated" => "nom::sequence::terminated",
     "separated_pair" => "nom::sequence::separated_pair",
     "delimited" => "nom::sequence::delimited",
+    "tuple" => "nom::sequence::tuple",
 };
 
 pub fn apply_nom_namespaces(expr: &mut Expr) {
@@ -159,6 +163,21 @@ pub fn apply_nom_namespaces(expr: &mut Expr) {
         Expr::Let(let_expr) => {
             apply_nom_namespaces(&mut let_expr.expr);
         }
+        Expr::Lit(lit_expr) => match &lit_expr.lit {
+            Lit::Str(value) => {
+                *expr = match_bytes(value.value().as_bytes(), value.span());
+            }
+            Lit::ByteStr(value) => {
+                *expr = match_bytes(&value.value(), value.span());
+            }
+            Lit::Byte(value) => {
+                *expr = match_bytes(&[value.value()], value.span());
+            }
+            Lit::Char(value) => {
+                *expr = match_bytes(value.value().to_string().as_bytes(), value.span());
+            }
+            _ => {}
+        },
         Expr::Loop(loop_expr) => {
             loop_expr.body.stmts.iter_mut().for_each(|stmt| {
                 apply_nom_namespaces_stmt(stmt);
@@ -184,7 +203,7 @@ pub fn apply_nom_namespaces(expr: &mut Expr) {
             if segments.len() == 1 {
                 let ident = &segments[0].ident;
                 if let Some(nom_path) = NOM_FUNCTIONS.get(ident.to_string().as_str()) {
-                    path_expr.path.segments = syn::parse_str::<Path>(nom_path).unwrap().segments;
+                    path_expr.path.segments = parse_str::<Path>(nom_path).unwrap().segments;
                 }
             }
         }
@@ -249,6 +268,18 @@ pub fn apply_nom_namespaces(expr: &mut Expr) {
         }
         _ => {}
     }
+}
+
+fn match_bytes(value: &[u8], span: Span) -> Expr {
+    let mut array = parse_str::<ExprArray>(format!("{:?}", value).as_str()).unwrap();
+    array.bracket_token.span = span.into_spans();
+    array.elems.iter_mut().for_each(|elem| {
+        if let Expr::Lit(ExprLit { lit, .. }) = elem {
+            lit.set_span(span);
+        }
+    });
+    parse::<Expr>(quote_spanned! { span => nom::bytes::complete::tag(#array.as_ref()) }.into())
+        .unwrap()
 }
 
 fn apply_nom_namespaces_stmt(statement: &mut Stmt) {

@@ -1,40 +1,54 @@
 use crate::fields::Field;
 use crate::nom_packages::apply_nom_namespaces;
 use itertools::Itertools;
+use proc_macro::Span;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::{parse, Error, Expr, LitStr, Token};
 
 pub enum ParseSettings {
-    Split(Expr),
+    Split {
+        prefix: Option<Expr>,
+        split: Expr,
+        suffix: Option<Expr>,
+    },
     Match(LitStr),
 }
 
 impl ParseSettings {
     pub fn from(attrs: TokenStream) -> syn::Result<Self> {
-        let arguments = parse::<Arguments>(attrs.into())?;
-
-        match arguments {
-            Arguments::Split { expr, .. } => Ok(ParseSettings::Split(expr)),
-            Arguments::Match { lit, .. } => Ok(ParseSettings::Match(lit)),
-            Arguments::LiteralMatch { lit } => Ok(ParseSettings::Match(lit)),
-        }
+        parse::<ParseSettings>(attrs.into())
     }
 
     pub fn generate_parse_expressions(&self, fields: &[Field]) -> Vec<TokenStream> {
         match self {
-            ParseSettings::Split(expr) => {
-                let mut expr = expr.clone();
-                apply_nom_namespaces(&mut expr);
-                let expr = quote! { let (input, _) = #expr.parse(input)?; };
-                Itertools::intersperse(
+            ParseSettings::Split{ prefix, split, suffix} => {
+                let mut split = split.clone();
+                apply_nom_namespaces(&mut split);
+
+                let mut expressions: Vec<_> = Itertools::intersperse(
                     fields
                         .iter()
                         .map(|field| field.generate_expression().into_token_stream()),
-                    expr,
+                    quote! { let (input, _) = split.parse(input)?; },
                 )
-                .collect()
+                .collect();
+
+                if let Some(prefix) = prefix {
+                    let mut prefix = prefix.clone();
+                    apply_nom_namespaces(&mut prefix);
+                    expressions.insert(0, quote! { let (input, _) = #prefix.parse(input)?; });
+                }
+
+                if let Some(suffix) = suffix {
+                    let mut suffix = suffix.clone();
+                    apply_nom_namespaces(&mut suffix);
+                    expressions.push(quote! { let (input, _) = #suffix.parse(input)?; });
+                }
+
+                expressions.insert(0, quote! { let mut split = #split; });
+                expressions
             }
             ParseSettings::Match(literal) => {
                 let value = literal.value();
@@ -68,50 +82,57 @@ impl ParseSettings {
 mod keywords {
     use syn::custom_keyword;
 
+    custom_keyword!(prefix);
     custom_keyword!(split);
+    custom_keyword!(suffix);
 }
 
-#[allow(dead_code)]
-enum Arguments {
-    Split {
-        token: keywords::split,
-        eq_token: Token![=],
-        expr: Expr,
-    },
-    Match {
-        token: Token![match],
-        eq_token: Token![=],
-        lit: LitStr,
-    },
-    LiteralMatch {
-        lit: LitStr,
-    },
-}
-
-impl Parse for Arguments {
+impl Parse for ParseSettings {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(keywords::split) {
-            let token = input.parse::<keywords::split>()?;
-            let eq_token = input.parse::<Token![=]>()?;
-            let expr = input.parse::<Expr>()?;
-            Ok(Arguments::Split {
-                token,
-                eq_token,
-                expr,
-            })
-        } else if lookahead.peek(Token![match]) {
-            let token = input.parse::<Token![match]>()?;
-            let eq_token = input.parse::<Token![=]>()?;
+        if lookahead.peek(LitStr) {
             let lit = input.parse::<LitStr>()?;
-            Ok(Arguments::Match {
-                token,
-                eq_token,
-                lit,
+            return Ok(ParseSettings::Match(lit));
+        }
+
+        let mut prefix: Option<Expr> = None;
+        let mut split: Option<Expr> = None;
+        let mut suffix: Option<Expr> = None;
+        let mut first = true;
+
+        while !input.is_empty() {
+            if first {
+                first = false;
+            } else {
+                input.parse::<Token![;]>()?;
+            }
+
+            let lookahead = input.lookahead1();
+            if lookahead.peek(keywords::prefix) {
+                input.parse::<keywords::prefix>()?;
+                input.parse::<Token![=]>()?;
+                prefix = Some(input.parse()?);
+            } else if lookahead.peek(keywords::split) {
+                input.parse::<keywords::split>()?;
+                input.parse::<Token![=]>()?;
+                split = Some(input.parse()?);
+            } else if lookahead.peek(keywords::suffix) {
+                input.parse::<keywords::suffix>()?;
+                input.parse::<Token![=]>()?;
+                suffix = Some(input.parse()?);
+            } else {
+                return Err(lookahead.error());
+            }
+        }
+
+        if let Some(split) = split {
+            Ok(ParseSettings::Split {
+                prefix,
+                split,
+                suffix,
             })
         } else {
-            let lit = input.parse::<LitStr>()?;
-            Ok(Arguments::LiteralMatch { lit })
+            Err(Error::new(Span::call_site().into(), "Missing `split` keyword"))
         }
     }
 }
