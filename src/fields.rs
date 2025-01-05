@@ -56,10 +56,4 @@ impl Field {
             Field::Default { name, .. } => name,
         }
     }
-
-    pub fn get_type(&self) -> &Type {
-        match self {
-            Field::Default { ty, .. } => ty,
-        }
-    }
 }

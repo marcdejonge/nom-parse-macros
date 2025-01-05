@@ -3,8 +3,6 @@ use crate::nom_packages::generate_match_expression;
 use itertools::Itertools;
 use proc_macro2::TokenStream;
 use quote::{quote_spanned, ToTokens};
-use syn::parse::Parse;
-use syn::spanned::Spanned;
 use syn::{Error, LitStr, Result};
 
 pub fn parse_string_match(fields: &[Field], literal: LitStr) -> Result<Vec<TokenStream>> {
