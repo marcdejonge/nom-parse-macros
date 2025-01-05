@@ -5,6 +5,7 @@ use syn::punctuated::Punctuated;
 use syn::{
     parse, parse_str, Expr, ExprArray, ExprCall, ExprLit, ExprPath, ExprTuple, Lit, Path, Result,
 };
+use syn::spanned::Spanned;
 
 const NOM_FUNCTIONS: phf::Map<&'static str, (&'static str, &'static [bool])> = phf::phf_map! {
     // From the nom::branch module
@@ -99,24 +100,35 @@ const NOM_FUNCTIONS: phf::Map<&'static str, (&'static str, &'static [bool])> = p
     "tuple" => ("nom::sequence::tuple", &[]), // Special handling for tuples
 };
 
-pub fn handle_nom_parse_expression(expr: &mut Expr) -> Result<()> {
+pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
     match expr {
+        Expr::Block(block_expr) => {
+            if block_expr.block.stmts.is_empty() {
+                *expr = parse::<Expr>(quote_spanned! { block_expr.span() => nom_parse_trait::ParseFrom::parse }.into())?;
+                Ok(())
+            } else {
+                Err(syn::Error::new_spanned(
+                    block_expr,
+                    "Only supporting building nom parsers from function calls and string literals",
+                ))
+            }
+        },
         Expr::Call(call) => parse_call(call),
         Expr::Lit(lit_expr) => match &lit_expr.lit {
             Lit::Str(value) => {
-                *expr = generate_tag_expression(value.value().as_bytes(), value.span());
+                *expr = generate_match_expression(value.value().as_bytes(), value.span());
                 Ok(())
             }
             Lit::ByteStr(value) => {
-                *expr = generate_tag_expression(&value.value(), value.span());
+                *expr = generate_match_expression(&value.value(), value.span());
                 Ok(())
             }
             Lit::Byte(value) => {
-                *expr = generate_tag_expression(&[value.value()], value.span());
+                *expr = generate_match_expression(&[value.value()], value.span());
                 Ok(())
             }
             Lit::Char(value) => {
-                *expr = generate_tag_expression(value.value().to_string().as_bytes(), value.span());
+                *expr = generate_match_expression(value.value().to_string().as_bytes(), value.span());
                 Ok(())
             }
             _ => Err(syn::Error::new_spanned(
@@ -126,9 +138,14 @@ pub fn handle_nom_parse_expression(expr: &mut Expr) -> Result<()> {
         },
         Expr::Path(ExprPath { path, .. }) => parse_path(path),
         Expr::Tuple(ExprTuple { elems, .. }) => {
-            // Tuples are assumed to be all parsers
-            for elem in elems.iter_mut() {
-                handle_nom_parse_expression(elem)?;
+            if elems.is_empty() {
+                // An empty tuple is used as a shortcut for the ParseFrom parser
+                *expr = parse::<Expr>(quote_spanned! { elems.span() => nom_parse_trait::ParseFrom::parse }.into())?;
+            } else {
+                // Tuples are assumed to be all parsers
+                for elem in elems.iter_mut() {
+                    update_nom_expression(elem)?;
+                }
             }
             Ok(())
         }
@@ -161,7 +178,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                     }
 
                     for arg in call.args.iter_mut() {
-                        handle_nom_parse_expression(arg)?;
+                        update_nom_expression(arg)?;
                     }
                 // Nom functions without parameters should not be called, but referenced directly
                 } else if parameters.len() == 0 {
@@ -183,7 +200,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                 } else {
                     for (arg, &is_parser) in call.args.iter_mut().zip(parameters) {
                         if is_parser {
-                            handle_nom_parse_expression(arg)?;
+                            update_nom_expression(arg)?;
                         }
                     }
                 }
@@ -221,7 +238,7 @@ pub fn parse_path(path_expr: &mut Path) -> Result<()> {
     Ok(())
 }
 
-pub fn generate_tag_expression(value: &[u8], span: Span) -> Expr {
+pub fn generate_match_expression(value: &[u8], span: Span) -> Expr {
     let mut array = parse_str::<ExprArray>(format!("{:?}", value).as_str()).unwrap();
     array.bracket_token.span = span.into_spans();
     array.elems.iter_mut().for_each(|elem| {

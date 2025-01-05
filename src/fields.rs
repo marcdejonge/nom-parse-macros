@@ -1,11 +1,11 @@
 use quote::quote;
 use proc_macro2::{Ident, Span};
-use syn::{Fields, FieldsNamed, FieldsUnnamed};
+use syn::{Fields, FieldsNamed, FieldsUnnamed, Type};
 
 pub enum Field {
     Default {
         name: Ident,
-        ty: syn::Type,
+        ty: Type,
     }
 }
 
@@ -48,6 +48,12 @@ impl Field {
     pub fn get_name(&self) -> &Ident {
         match self {
             Field::Default { name, .. } => name,
+        }
+    }
+
+    pub fn get_type(&self) -> &Type {
+        match self {
+            Field::Default { ty, .. } => ty,
         }
     }
 }

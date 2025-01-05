@@ -1,5 +1,5 @@
 use crate::fields::Field;
-use crate::nom_packages::{generate_tag_expression, handle_nom_parse_expression};
+use crate::nom_packages::{generate_match_expression, update_nom_expression};
 use itertools::Itertools;
 use proc_macro::Span;
 use proc_macro2::TokenStream;
@@ -30,7 +30,7 @@ impl ParseSettings {
                 suffix,
             } => {
                 let mut split = split.clone();
-                handle_nom_parse_expression(&mut split)?;
+                update_nom_expression(&mut split)?;
 
                 let mut expressions: Vec<_> = Itertools::intersperse(
                     fields
@@ -42,7 +42,7 @@ impl ParseSettings {
 
                 if let Some(prefix) = prefix {
                     let mut prefix = prefix.clone();
-                    handle_nom_parse_expression(&mut prefix)?;
+                    update_nom_expression(&mut prefix)?;
                     expressions.insert(
                         0,
                         quote_spanned! { prefix.span() => let (input, _) = #prefix.parse(input)?; },
@@ -51,7 +51,7 @@ impl ParseSettings {
 
                 if let Some(suffix) = suffix {
                     let mut suffix = suffix.clone();
-                    handle_nom_parse_expression(&mut suffix)?;
+                    update_nom_expression(&mut suffix)?;
                     expressions.push(
                         quote_spanned! { suffix.span() => let (input, _) = #suffix.parse(input)?; },
                     );
@@ -68,7 +68,7 @@ impl ParseSettings {
                 let parts: Vec<_> = value
                     .split("{}")
                     .map(|part| {
-                        let expr = generate_tag_expression(part.as_bytes(), literal.span());
+                        let expr = generate_match_expression(part.as_bytes(), literal.span());
                         quote_spanned! { literal.span() => let (input, _) = #expr.parse(input)?; }
                     })
                     .collect();
