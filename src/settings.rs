@@ -1,10 +1,11 @@
 use crate::fields::Field;
-use crate::nom_packages::apply_nom_namespaces;
+use crate::nom_packages::{apply_nom_namespaces, generate_tag_expression};
 use itertools::Itertools;
 use proc_macro::Span;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{quote_spanned, ToTokens};
 use syn::parse::{Parse, ParseStream};
+use syn::spanned::Spanned;
 use syn::{parse, Error, Expr, LitStr, Token};
 
 pub enum ParseSettings {
@@ -23,7 +24,11 @@ impl ParseSettings {
 
     pub fn generate_parse_expressions(&self, fields: &[Field]) -> Vec<TokenStream> {
         match self {
-            ParseSettings::Split{ prefix, split, suffix} => {
+            ParseSettings::Split {
+                prefix,
+                split,
+                suffix,
+            } => {
                 let mut split = split.clone();
                 apply_nom_namespaces(&mut split);
 
@@ -31,23 +36,31 @@ impl ParseSettings {
                     fields
                         .iter()
                         .map(|field| field.generate_expression().into_token_stream()),
-                    quote! { let (input, _) = split.parse(input)?; },
+                    quote_spanned! { split.span() => let (input, _) = split.parse(input)?; },
                 )
                 .collect();
 
                 if let Some(prefix) = prefix {
                     let mut prefix = prefix.clone();
                     apply_nom_namespaces(&mut prefix);
-                    expressions.insert(0, quote! { let (input, _) = #prefix.parse(input)?; });
+                    expressions.insert(
+                        0,
+                        quote_spanned! { prefix.span() => let (input, _) = #prefix.parse(input)?; },
+                    );
                 }
 
                 if let Some(suffix) = suffix {
                     let mut suffix = suffix.clone();
                     apply_nom_namespaces(&mut suffix);
-                    expressions.push(quote! { let (input, _) = #suffix.parse(input)?; });
+                    expressions.push(
+                        quote_spanned! { suffix.span() => let (input, _) = #suffix.parse(input)?; },
+                    );
                 }
 
-                expressions.insert(0, quote! { let mut split = #split; });
+                expressions.insert(
+                    0,
+                    quote_spanned! { split.span() => let mut split = #split; },
+                );
                 expressions
             }
             ParseSettings::Match(literal) => {
@@ -55,7 +68,8 @@ impl ParseSettings {
                 let parts: Vec<_> = value
                     .split("{}")
                     .map(|part| {
-                        quote! { let (input, _) = nom::bytes::complete::tag(#part)(input)?; }
+                        let expr = generate_tag_expression(part.as_bytes(), literal.span());
+                        quote_spanned! { literal.span() => let (input, _) = #expr.parse(input)?; }
                     })
                     .collect();
 
@@ -132,7 +146,10 @@ impl Parse for ParseSettings {
                 suffix,
             })
         } else {
-            Err(Error::new(Span::call_site().into(), "Missing `split` keyword"))
+            Err(Error::new(
+                Span::call_site().into(),
+                "Missing `split` keyword",
+            ))
         }
     }
 }

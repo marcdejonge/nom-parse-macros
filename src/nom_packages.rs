@@ -165,16 +165,16 @@ pub fn apply_nom_namespaces(expr: &mut Expr) {
         }
         Expr::Lit(lit_expr) => match &lit_expr.lit {
             Lit::Str(value) => {
-                *expr = match_bytes(value.value().as_bytes(), value.span());
+                *expr = generate_tag_expression(value.value().as_bytes(), value.span());
             }
             Lit::ByteStr(value) => {
-                *expr = match_bytes(&value.value(), value.span());
+                *expr = generate_tag_expression(&value.value(), value.span());
             }
             Lit::Byte(value) => {
-                *expr = match_bytes(&[value.value()], value.span());
+                *expr = generate_tag_expression(&[value.value()], value.span());
             }
             Lit::Char(value) => {
-                *expr = match_bytes(value.value().to_string().as_bytes(), value.span());
+                *expr = generate_tag_expression(value.value().to_string().as_bytes(), value.span());
             }
             _ => {}
         },
@@ -270,7 +270,7 @@ pub fn apply_nom_namespaces(expr: &mut Expr) {
     }
 }
 
-fn match_bytes(value: &[u8], span: Span) -> Expr {
+pub fn generate_tag_expression(value: &[u8], span: Span) -> Expr {
     let mut array = parse_str::<ExprArray>(format!("{:?}", value).as_str()).unwrap();
     array.bracket_token.span = span.into_spans();
     array.elems.iter_mut().for_each(|elem| {
