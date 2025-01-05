@@ -1,12 +1,9 @@
-use quote::quote;
 use proc_macro2::{Ident, Span};
+use quote::quote;
 use syn::{Fields, FieldsNamed, FieldsUnnamed, Type};
 
 pub enum Field {
-    Default {
-        name: Ident,
-        ty: Type,
-    }
+    Default { name: Ident, ty: Type },
 }
 
 pub fn parse_fields(fields: &Fields) -> Vec<Field> {
@@ -18,20 +15,29 @@ pub fn parse_fields(fields: &Fields) -> Vec<Field> {
 }
 
 fn parse_named_fields(fields: &FieldsNamed) -> Vec<Field> {
-    fields.named.iter().map(|field| {
-        let mut name = field.ident.clone().unwrap();
-        name.set_span(Span::call_site());
-        let ty = field.ty.clone();
-        Field::Default { name, ty }
-    }).collect()
+    fields
+        .named
+        .iter()
+        .map(|field| {
+            let mut name = field.ident.clone().unwrap();
+            name.set_span(Span::call_site());
+            let ty = field.ty.clone();
+            Field::Default { name, ty }
+        })
+        .collect()
 }
 
 fn parse_unnamed_fields(fields: &FieldsUnnamed) -> Vec<Field> {
-    fields.unnamed.iter().enumerate().map(|(index, field)| {
-        let name = Ident::new(&format!("field_{}", index), Span::call_site());
-        let ty = field.ty.clone();
-        Field::Default { name, ty }
-    }).collect()
+    fields
+        .unnamed
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let name = Ident::new(&format!("field_{}", index), Span::call_site());
+            let ty = field.ty.clone();
+            Field::Default { name, ty }
+        })
+        .collect()
 }
 
 impl Field {
