@@ -1,9 +1,9 @@
+//! This example shows how you can use a string matching pattern for parsing.
+//! The {} gets replaced with a parser for the corresponding field. The rest of
+//! the characters are matched verbatim.
+
 use nom_parse_macros::parse_match;
 use nom_parse_trait::ParseFrom;
-
-/// This example shows how you can use a string matching pattern for parsing.
-/// The {} gets replaced with a parser for the corresponding field. The rest of
-/// the characters are matched verbatim.
 
 #[parse_match("({},{},{})")]
 #[derive(Debug, PartialEq)]
@@ -18,4 +18,3 @@ fn main() {
     let pair = Vector3::parse(input).unwrap();
     println!("Parsed \"{}\" as {:?}", input, pair.1);
 }
-

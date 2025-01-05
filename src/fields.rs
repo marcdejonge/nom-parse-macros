@@ -1,22 +1,30 @@
 use itertools::Itertools;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::{Expr, Fields, FieldsNamed, FieldsUnnamed, Result, Type};
+use syn::{Expr, FieldsNamed, FieldsUnnamed, Result, Type};
 
 pub enum Field {
     Default { name: Ident, ty: Type },
     Derived { name: Ident, ty: Type, expr: Expr },
 }
 
-pub fn parse_fields(fields: &mut Fields) -> Result<Vec<Field>> {
+pub struct Fields {
+    pub(crate) is_named: bool,
+    pub(crate) fields: Vec<Field>,
+}
+
+pub fn parse_fields(fields: &mut syn::Fields) -> Result<Fields> {
     match fields {
-        Fields::Named(named_fields) => parse_named_fields(named_fields),
-        Fields::Unnamed(unnamed_fields) => Ok(parse_unnamed_fields(unnamed_fields)),
-        Fields::Unit => Ok(Vec::new()),
+        syn::Fields::Named(named_fields) => parse_named_fields(named_fields),
+        syn::Fields::Unnamed(unnamed_fields) => Ok(parse_unnamed_fields(unnamed_fields)),
+        syn::Fields::Unit => Ok(Fields {
+            is_named: false,
+            fields: Vec::new(),
+        }),
     }
 }
 
-fn parse_named_fields(fields: &mut FieldsNamed) -> Result<Vec<Field>> {
+fn parse_named_fields(fields: &mut FieldsNamed) -> Result<Fields> {
     let mut result = Vec::new();
 
     for field in fields.named.iter_mut() {
@@ -37,11 +45,14 @@ fn parse_named_fields(fields: &mut FieldsNamed) -> Result<Vec<Field>> {
         }
     }
 
-    Ok(result)
+    Ok(Fields {
+        is_named: true,
+        fields: result,
+    })
 }
 
-fn parse_unnamed_fields(fields: &FieldsUnnamed) -> Vec<Field> {
-    fields
+fn parse_unnamed_fields(fields: &FieldsUnnamed) -> Fields {
+    let fields = fields
         .unnamed
         .iter()
         .enumerate()
@@ -50,7 +61,11 @@ fn parse_unnamed_fields(fields: &FieldsUnnamed) -> Vec<Field> {
             let ty = field.ty.clone();
             Field::Default { name, ty }
         })
-        .collect()
+        .collect();
+    Fields {
+        is_named: false,
+        fields,
+    }
 }
 
 impl Field {
@@ -70,6 +85,13 @@ impl Field {
         }
     }
 
+    pub fn get_type(&self) -> &Type {
+        match self {
+            Field::Default { ty, .. } => ty,
+            Field::Derived { ty, .. } => ty,
+        }
+    }
+
     pub fn generate_derived_expression(&self) -> Option<TokenStream> {
         match self {
             Field::Default { .. } => None,
@@ -77,5 +99,37 @@ impl Field {
                 let #name: #ty = #expr;
             }),
         }
+    }
+}
+
+impl Fields {
+    pub fn get_all_names(&self) -> Vec<Ident> {
+        self.fields
+            .iter()
+            .map(|field| field.get_name().clone())
+            .collect()
+    }
+
+    pub fn get_expression_names(&self) -> Vec<Ident> {
+        self.fields
+            .iter()
+            .filter(|field| !matches!(field, Field::Derived { .. }))
+            .map(|field| field.get_name().clone())
+            .collect()
+    }
+
+    pub fn get_expression_types(&self) -> Vec<Type> {
+        self.fields
+            .iter()
+            .filter(|field| !matches!(field, Field::Derived { .. }))
+            .map(|field| field.get_type().clone())
+            .collect()
+    }
+
+    pub fn get_derived_expressions(&self) -> Vec<TokenStream> {
+        self.fields
+            .iter()
+            .filter_map(|field| field.generate_derived_expression())
+            .collect()
     }
 }

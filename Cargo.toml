@@ -22,16 +22,20 @@ proc-macro = true
 path = "src/lib.rs"
 
 [[example]]
+name = "basic_enum_with_members"
+path = "examples/basic_enum_with_members.rs"
+
+[[example]]
 name = "basic_struct_with_members"
 path = "examples/basic_struct_with_members.rs"
 
 [[example]]
-name = "use_matching_string"
-path = "examples/use_matching_string.rs"
-
-[[example]]
 name = "derived_fields"
 path = "examples/derived_fields.rs"
+
+[[example]]
+name = "use_matching_string"
+path = "examples/use_matching_string.rs"
 
 [dependencies]
 quote = "1.0"

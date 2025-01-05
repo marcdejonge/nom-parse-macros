@@ -1,10 +1,10 @@
-use crate::fields::Field;
+use crate::fields::Fields;
 use crate::nom_packages::generate_match_expression;
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 use syn::{Error, LitStr, Result};
 
-pub fn parse_string_match(fields: &[Field], literal: LitStr) -> Result<Vec<TokenStream>> {
+pub fn parse_string_match(fields: &Fields, literal: LitStr) -> Result<Vec<TokenStream>> {
     let value = literal.value();
     let parts: Vec<_> = value
         .split("{}")
@@ -14,7 +14,7 @@ pub fn parse_string_match(fields: &[Field], literal: LitStr) -> Result<Vec<Token
         })
         .collect();
 
-    if parts.len() != fields.len() + 1 {
+    if parts.len() != fields.fields.len() + 1 {
         return Err(Error::new(
             literal.span(),
             "Number of {} parts in the literal is not equal to the number of fields",
@@ -22,14 +22,14 @@ pub fn parse_string_match(fields: &[Field], literal: LitStr) -> Result<Vec<Token
     }
 
     let mut result = vec![parts[0].clone()];
-    for index in 0..fields.len() {
-        if let Some(expr) = fields[index].generate_expression() {
+    for index in 0..fields.fields.len() {
+        if let Some(expr) = fields.fields[index].generate_expression() {
             result.push(expr);
         }
         result.push(parts[index + 1].clone());
     }
 
-    for field in fields {
+    for field in &fields.fields {
         if let Some(expr) = field.generate_derived_expression() {
             result.push(expr);
         }
