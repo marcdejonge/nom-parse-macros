@@ -1,7 +1,7 @@
 use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFrom;
 
-#[parse_from(split = delimited(space0, ",", space0))]
+#[parse_from(split = tuple(space0, ",", space0))]
 #[derive(Debug, PartialEq)]
 struct NumberPair {
     x: u32,

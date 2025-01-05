@@ -1,12 +1,12 @@
 use crate::fields::Field;
-use crate::nom_packages::{apply_nom_namespaces, generate_tag_expression};
+use crate::nom_packages::{generate_tag_expression, handle_nom_parse_expression};
 use itertools::Itertools;
 use proc_macro::Span;
 use proc_macro2::TokenStream;
 use quote::{quote_spanned, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{parse, Error, Expr, LitStr, Token};
+use syn::{parse, Error, Expr, LitStr, Result, Token};
 
 pub enum ParseSettings {
     Split {
@@ -18,11 +18,11 @@ pub enum ParseSettings {
 }
 
 impl ParseSettings {
-    pub fn from(attrs: TokenStream) -> syn::Result<Self> {
+    pub fn from(attrs: TokenStream) -> Result<Self> {
         parse::<ParseSettings>(attrs.into())
     }
 
-    pub fn generate_parse_expressions(&self, fields: &[Field]) -> Vec<TokenStream> {
+    pub fn generate_parse_expressions(&self, fields: &[Field]) -> Result<Vec<TokenStream>> {
         match self {
             ParseSettings::Split {
                 prefix,
@@ -30,7 +30,7 @@ impl ParseSettings {
                 suffix,
             } => {
                 let mut split = split.clone();
-                apply_nom_namespaces(&mut split);
+                handle_nom_parse_expression(&mut split)?;
 
                 let mut expressions: Vec<_> = Itertools::intersperse(
                     fields
@@ -42,7 +42,7 @@ impl ParseSettings {
 
                 if let Some(prefix) = prefix {
                     let mut prefix = prefix.clone();
-                    apply_nom_namespaces(&mut prefix);
+                    handle_nom_parse_expression(&mut prefix)?;
                     expressions.insert(
                         0,
                         quote_spanned! { prefix.span() => let (input, _) = #prefix.parse(input)?; },
@@ -51,7 +51,7 @@ impl ParseSettings {
 
                 if let Some(suffix) = suffix {
                     let mut suffix = suffix.clone();
-                    apply_nom_namespaces(&mut suffix);
+                    handle_nom_parse_expression(&mut suffix)?;
                     expressions.push(
                         quote_spanned! { suffix.span() => let (input, _) = #suffix.parse(input)?; },
                     );
@@ -61,7 +61,7 @@ impl ParseSettings {
                     0,
                     quote_spanned! { split.span() => let mut split = #split; },
                 );
-                expressions
+                Ok(expressions)
             }
             ParseSettings::Match(literal) => {
                 let value = literal.value();
@@ -74,20 +74,19 @@ impl ParseSettings {
                     .collect();
 
                 if parts.len() != fields.len() + 1 {
-                    return vec![Error::new(
+                    return Err(Error::new(
                         literal.span(),
-                        "Number of {} does not match number of fields",
-                    )
-                    .to_compile_error()];
+                        "Number of {} parts in the literal is not equal to the number of fields",
+                    ));
                 }
 
-                Itertools::interleave(
+                Ok(Itertools::interleave(
                     parts.into_iter(),
                     fields
                         .iter()
                         .map(|field| field.generate_expression().into_token_stream()),
                 )
-                .collect()
+                .collect())
             }
         }
     }

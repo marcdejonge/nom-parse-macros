@@ -1,14 +1,14 @@
-mod settings;
+extern crate proc_macro;
 mod fields;
 mod nom_packages;
+mod settings;
 
-extern crate proc_macro;
 use proc_macro::TokenStream;
 
-use quote::quote;
-use syn::ItemStruct;
 use crate::fields::parse_fields;
 use crate::settings::ParseSettings;
+use quote::quote;
+use syn::ItemStruct;
 
 #[proc_macro_attribute]
 pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {
@@ -21,22 +21,26 @@ pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {
     let fields = parse_fields(&object.fields);
     let name = object.ident.clone();
 
-    let expressions = parse_settings.generate_parse_expressions(&fields);
-    let names: Vec<_> = fields.iter().map(|field| field.get_name()).collect();
+    parse_settings
+        .generate_parse_expressions(&fields)
+        .map(|expressions| {
+            let names: Vec<_> = fields.iter().map(|field| field.get_name()).collect();
 
-    let tokens = quote! {
-        #object
+            let tokens = quote! {
+                #object
 
-        impl nom_parse_trait::ParseFrom<&str> for #name {
-            fn parse(input: &str) -> nom::IResult<&str, Self> {
-                use nom::Parser;
+                impl nom_parse_trait::ParseFrom<&str> for #name {
+                    fn parse(input: &str) -> nom::IResult<&str, Self> {
+                        use nom::Parser;
 
-                let mut input = input;
-                #(#expressions)*
-                Ok((input, Self { #(#names),* }))
-            }
-        }
-    };
+                        let mut input = input;
+                        #(#expressions)*
+                        Ok((input, Self { #(#names),* }))
+                    }
+                }
+            };
 
-    tokens.into()
+            tokens.into()
+        })
+        .unwrap_or_else(|e| e.to_compile_error().into())
 }
