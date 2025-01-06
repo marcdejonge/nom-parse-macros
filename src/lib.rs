@@ -40,12 +40,15 @@ fn generate_struct_parser(attrs: TokenStream, mut object: ItemStruct) -> TokenSt
     let expression_names = fields.get_expression_names();
     let derived_expressions = fields.get_derived_expressions();
     let create_expr = fields.create_instance_expr(None);
+    let where_clause = generate_where_clause();
 
     let tokens = quote! {
         #object
 
-        impl nom_parse_trait::ParseFrom<&str> for #name {
-            fn parse(input: &str) -> nom::IResult<&str, Self> {
+        impl<I> nom_parse_trait::ParseFrom<I> for #name
+        #where_clause
+        {
+            fn parse(input: I) -> nom::IResult<I, Self> {
                 use nom::*;
 
                 let (input, (#(#expression_names),*)) = #expression.parse(input)?;
@@ -145,6 +148,7 @@ pub fn parse_match(attrs: TokenStream, object: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into(),
     };
     let name = object.ident.clone();
+    let where_clause = generate_where_clause();
 
     match parse_string_match(&fields, literal) {
         Ok(parts) => {
@@ -152,8 +156,10 @@ pub fn parse_match(attrs: TokenStream, object: TokenStream) -> TokenStream {
             let tokens = quote! {
                 #object
 
-                impl nom_parse_trait::ParseFrom<&str> for #name {
-                    fn parse(input: &str) -> nom::IResult<&str, Self> {
+                impl<I> nom_parse_trait::ParseFrom<I> for #name
+                #where_clause
+                {
+                    fn parse(input: I) -> nom::IResult<I, Self> {
                         use nom::*;
 
                         let mut input = input;
@@ -166,5 +172,20 @@ pub fn parse_match(attrs: TokenStream, object: TokenStream) -> TokenStream {
             tokens.into()
         }
         Err(e) => e.to_compile_error().into(),
+    }
+}
+
+fn generate_where_clause() -> proc_macro2::TokenStream {
+    quote! {
+        where
+            I: Clone,
+            I: nom::Slice<std::ops::RangeTo<usize>> + nom::Slice<std::ops::RangeFrom<usize>> + nom::Slice<std::ops::Range<usize>>,
+            I: nom::InputTake + nom::InputLength + nom::Offset + nom::AsBytes,
+            I: nom::InputIter,
+            <I as nom::InputIter>::Item: nom::AsChar + Copy,
+            <I as nom::InputIter>::IterElem: Clone,
+            I: nom::InputTakeAtPosition,
+            <I as nom::InputTakeAtPosition>::Item: nom::AsChar + Copy,
+            I: for<'a> nom::Compare<&'a [u8]>,
     }
 }
