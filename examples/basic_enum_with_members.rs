@@ -2,6 +2,7 @@
 //! The expected outcome of the nom expression should be a tuple with the same
 //! amount of parameters as the struct has.
 
+use nom::IResult;
 use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFrom;
 
@@ -15,10 +16,10 @@ enum SomeConfig {
 
 fn main() {
     let input = "32";
-    let number = SomeConfig::parse(input).unwrap().1;
-    println!("Parsed \"{}\" as {:?}", input, number);
+    let number: IResult<_, _> = SomeConfig::parse(input);
+    println!("Parsed \"{}\" as {:?}", input, number.unwrap().1);
 
     let input = "(32,34,46)";
-    let numbers = SomeConfig::parse(input).unwrap().1;
-    println!("Parsed \"{}\" as {:?}", input, numbers);
+    let numbers: IResult<_, _> = SomeConfig::parse(input);
+    println!("Parsed \"{}\" as {:?}", input, numbers.unwrap().1);
 }

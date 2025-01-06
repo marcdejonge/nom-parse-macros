@@ -2,6 +2,7 @@
 //! The {} gets replaced with a parser for the corresponding field. The rest of
 //! the characters are matched verbatim.
 
+use nom::IResult;
 use nom_parse_macros::parse_match;
 use nom_parse_trait::ParseFrom;
 
@@ -15,6 +16,6 @@ struct Vector3 {
 
 fn main() {
     let input = "(1,3,4)";
-    let pair = Vector3::parse(input).unwrap();
-    println!("Parsed \"{}\" as {:?}", input, pair.1);
+    let pair: IResult<_, _> = Vector3::parse(input);
+    println!("Parsed \"{}\" as {:?}", input, pair.unwrap().1);
 }

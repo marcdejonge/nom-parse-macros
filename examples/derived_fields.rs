@@ -2,6 +2,7 @@
 //! A derived field is not actually parsed, but derived from all of the other
 //! fields that are parsed.
 
+use nom::IResult;
 use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFrom;
 
@@ -16,6 +17,6 @@ struct NumberPair {
 
 fn main() {
     let input = "1 ,  2";
-    let pair = NumberPair::parse(input).unwrap();
-    println!("Parsed \"{}\" as {:?}", input, pair.1);
+    let pair: IResult<_, _> = NumberPair::parse(input);
+    println!("Parsed \"{}\" as {:?}", input, pair.unwrap().1);
 }

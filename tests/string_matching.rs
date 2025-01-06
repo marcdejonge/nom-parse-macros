@@ -13,7 +13,7 @@ fn test_vector() {
     }
 
     assert_eq!(
-        Ok(Test { x: 1, y: 3, z: 4 }),
+        Ok::<_, Error<_>>(Test { x: 1, y: 3, z: 4 }),
         Test::parse_complete("(1,3,4)")
     );
 

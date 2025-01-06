@@ -40,25 +40,16 @@ fn generate_struct_parser(attrs: TokenStream, mut object: ItemStruct) -> TokenSt
     let expression_names = fields.get_expression_names();
     let derived_expressions = fields.get_derived_expressions();
     let create_expr = fields.create_instance_expr(None);
-    let where_clause = generate_where_clause();
 
-    let tokens = quote! {
-        #object
-
-        impl<I> nom_parse_trait::ParseFrom<I> for #name
-        #where_clause
-        {
-            fn parse(input: I) -> nom::IResult<I, Self> {
-                use nom::*;
-
-                let (input, (#(#expression_names),*)) = #expression.parse(input)?;
-                #(#derived_expressions)*
-                Ok((input, #create_expr))
-            }
-        }
-    };
-
-    tokens.into()
+    generate_parser(
+        object,
+        name,
+        quote! {
+            let (input, (#(#expression_names),*)) = #expression.parse(input)?;
+            #(#derived_expressions)*
+            Ok((input, #create_expr))
+        },
+    )
 }
 
 fn generate_enum_parser(mut object: ItemEnum) -> TokenStream {
@@ -107,35 +98,39 @@ fn generate_enum_parser(mut object: ItemEnum) -> TokenStream {
         );
         mapping_names.push(mapping_name.clone());
 
-        mappings.push(quote! {
-            let #mapping_name = nom::combinator::map(
-                #format_expr,
-                |(#(#expression_names),*): (#(#expression_types),*)| {
-                    #(#derived_expressions)*
-                    #create_expr
-                }
-            );
-        })
+        if expression_names.is_empty() {
+            // Parsing a variant without fields
+            mappings.push(quote! {
+                let #mapping_name = nom::combinator::map(
+                    #format_expr,
+                    |_| { #create_expr }
+                );
+            })
+        } else {
+            mappings.push(quote! {
+                let #mapping_name = nom::combinator::map(
+                    #format_expr,
+                    |(#(#expression_names),*): (#(#expression_types),*)| {
+                        #(#derived_expressions)*
+                        #create_expr
+                    }
+                );
+            })
+        }
     }
 
     let name = object.ident.clone();
 
-    let tokens = quote! {
-        #object
-
-        impl nom_parse_trait::ParseFrom<&str> for #name {
-            fn parse(input: &str) -> nom::IResult<&str, Self> {
-                use nom::*;
-
-                #(#mappings)*
-                nom::branch::alt((
-                    #(#mapping_names),*
-                )).parse(input)
-            }
-        }
-    };
-
-    tokens.into()
+    generate_parser(
+        object,
+        name,
+        quote! {
+            #(#mappings)*
+            nom::branch::alt((
+                #(#mapping_names),*
+            )).parse(input)
+        },
+    )
 }
 
 #[proc_macro_attribute]
@@ -148,36 +143,30 @@ pub fn parse_match(attrs: TokenStream, object: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into(),
     };
     let name = object.ident.clone();
-    let where_clause = generate_where_clause();
 
     match parse_string_match(&fields, literal) {
         Ok(parts) => {
             let names: Vec<_> = fields.fields.iter().map(|field| field.get_name()).collect();
-            let tokens = quote! {
-                #object
-
-                impl<I> nom_parse_trait::ParseFrom<I> for #name
-                #where_clause
-                {
-                    fn parse(input: I) -> nom::IResult<I, Self> {
-                        use nom::*;
-
-                        let mut input = input;
-                        #(#parts)*
-                        Ok((input, Self { #(#names),* }))
-                    }
-                }
-            };
-
-            tokens.into()
+            generate_parser(
+                object,
+                name,
+                quote! {
+                    #(#parts)*
+                    Ok((input, Self { #(#names),* }))
+                },
+            )
         }
         Err(e) => e.to_compile_error().into(),
     }
 }
 
-fn generate_where_clause() -> proc_macro2::TokenStream {
-    quote! {
+fn generate_parser(object: impl ToTokens, name: Ident, content: impl ToTokens) -> TokenStream {
+    let tokens = quote! {
+        #object
+
+        impl<I, E> nom_parse_trait::ParseFrom<I, E> for #name
         where
+            E: nom::error::ParseError<I>,
             I: Clone,
             I: nom::Slice<std::ops::RangeTo<usize>> + nom::Slice<std::ops::RangeFrom<usize>> + nom::Slice<std::ops::Range<usize>>,
             I: nom::InputTake + nom::InputLength + nom::Offset + nom::AsBytes,
@@ -187,5 +176,15 @@ fn generate_where_clause() -> proc_macro2::TokenStream {
             I: nom::InputTakeAtPosition,
             <I as nom::InputTakeAtPosition>::Item: nom::AsChar + Copy,
             I: for<'a> nom::Compare<&'a [u8]>,
-    }
+            I: nom::Compare<&'static str>,
+        {
+            fn parse(input: I) -> nom::IResult<I, Self, E> {
+                use nom::*;
+                use nom_parse_trait::ParseFrom;
+
+                #content
+            }
+        }
+    };
+    tokens.into()
 }

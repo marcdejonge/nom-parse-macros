@@ -2,6 +2,7 @@
 //! The expected outcome of the nom expression should be a tuple with the same
 //! amount of parameters as the struct has.
 
+use nom::IResult;
 use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFrom;
 
@@ -14,6 +15,6 @@ struct NumberPair {
 
 fn main() {
     let input = "1 ,  2";
-    let pair = NumberPair::parse(input).unwrap();
-    println!("Parsed \"{}\" as {:?}", input, pair.1);
+    let pair: IResult<_, _> = NumberPair::parse(input);
+    println!("Parsed \"{}\" as {:?}", input, pair.unwrap().1);
 }

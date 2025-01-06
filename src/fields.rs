@@ -139,7 +139,13 @@ impl Fields {
     pub fn create_instance_expr(&self, variant_name: Option<&Ident>) -> TokenStream {
         let all_names = self.get_all_names();
 
-        if let Some(name) = variant_name {
+        if all_names.is_empty() {
+            if let Some(name) = variant_name {
+                quote! { Self::#name }
+            } else {
+                quote! { Self }
+            }
+        } else if let Some(name) = variant_name {
             if self.is_named {
                 quote! { Self::#name { #(#all_names),* } }
             } else {

@@ -1,3 +1,4 @@
+use nom::error::Error;
 use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFromExt;
 
@@ -12,7 +13,7 @@ fn test_single_named_field() {
     let input = "32";
     let expected = Test { field: 32 };
 
-    assert_eq!(Ok(expected), Test::parse_complete(input));
+    assert_eq!(Ok::<_, Error<_>>(expected), Test::parse_complete(input));
 }
 
 #[test]
@@ -27,7 +28,7 @@ fn test_multiple_named_fields() {
     let input = "32 ,  45";
     let expected = Test { a: 32, b: 45 };
 
-    assert_eq!(Ok(expected), Test::parse_complete(input));
+    assert_eq!(Ok::<_, Error<_>>(expected), Test::parse_complete(input));
 }
 
 #[test]
@@ -43,7 +44,7 @@ fn test_derived_named_field() {
     let input = "32";
     let expected = Test { a: 32, b: 64 };
 
-    assert_eq!(Ok(expected), Test::parse_complete(input));
+    assert_eq!(Ok::<_, Error<_>>(expected), Test::parse_complete(input));
 }
 
 #[test]
@@ -55,7 +56,7 @@ fn test_singe_unnamed_field() {
     let input = "32";
     let expected = Test(32);
 
-    assert_eq!(Ok(expected), Test::parse_complete(input));
+    assert_eq!(Ok::<_, Error<_>>(expected), Test::parse_complete(input));
 }
 
 #[test]
@@ -67,7 +68,7 @@ fn test_multiple_unnamed_fields() {
     let input = "32 ,  45";
     let expected = Test(32, 45);
 
-    assert_eq!(Ok(expected), Test::parse_complete(input));
+    assert_eq!(Ok::<_, Error<_>>(expected), Test::parse_complete(input));
 }
 
 #[test]
@@ -79,5 +80,5 @@ fn test_derived_unnamed_field() {
     let input = "32";
     let expected = Test(32, 64);
 
-    assert_eq!(Ok(expected), Test::parse_complete(input));
+    assert_eq!(Ok::<_, Error<_>>(expected), Test::parse_complete(input));
 }
