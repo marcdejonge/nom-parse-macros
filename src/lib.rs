@@ -21,7 +21,7 @@ pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {
         Item::Enum(item_enum) => {
             generate_enum_parser(item_enum)
         },
-        _ => (quote! { compiler_error!("Genering ParseFrom implementation only works for structs and enums") }).into()
+        _ => (quote! { compiler_error!("Generating ParseFrom implementation only works for structs and enums") }).into()
     }
 }
 
@@ -39,7 +39,7 @@ fn generate_struct_parser(attrs: TokenStream, mut object: ItemStruct) -> TokenSt
 
     let expression_names = fields.get_expression_names();
     let derived_expressions = fields.get_derived_expressions();
-    let all_names = fields.get_all_names();
+    let create_expr = fields.create_instance_expr(None);
 
     let tokens = quote! {
         #object
@@ -50,7 +50,7 @@ fn generate_struct_parser(attrs: TokenStream, mut object: ItemStruct) -> TokenSt
 
                 let (input, (#(#expression_names),*)) = #expression.parse(input)?;
                 #(#derived_expressions)*
-                Ok((input, Self { #(#all_names),* }))
+                Ok((input, #create_expr))
             }
         }
     };
@@ -91,24 +91,19 @@ fn generate_enum_parser(mut object: ItemEnum) -> TokenStream {
             Ok(fields) => fields,
             Err(e) => return e.to_compile_error().into(),
         };
-        let name = variant.ident.clone();
+        let variant_name = variant.ident.clone();
 
         let expression_names = fields.get_expression_names();
         let expression_types = fields.get_expression_types();
         let derived_expressions = fields.get_derived_expressions();
-        let all_names = fields.get_all_names();
+        let create_expr = fields.create_instance_expr(Some(&variant_name));
 
         let mapping_name = Ident::new(
-            &format!("map_{}", name.to_string().to_lowercase()),
+            &format!("map_{}", variant_name.to_string().to_lowercase()),
             Span::call_site(),
         );
         mapping_names.push(mapping_name.clone());
 
-        let create_expr = if fields.is_named {
-            quote! { Self::#name { #(#all_names),* } }
-        } else {
-            quote! { Self::#name(#(#all_names),*) }
-        };
         mappings.push(quote! {
             let #mapping_name = nom::combinator::map(
                 #format_expr,

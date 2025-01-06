@@ -3,35 +3,38 @@ use nom_parse_trait::ParseFromExt;
 
 #[parse_from]
 #[derive(Debug, PartialEq)]
-enum SomeConfig {
+enum TestStruct {
     Number(u32),
     #[format(delimited('(', separated_list0(",", ()), ')'))]
-    Numbers(Vec<u32>),
+    Numbers(Vec<u32>, #[derived(field_0.iter().sum())] u32),
     #[format(delimited('"', map(alpha0, |s: &str| s.to_string()), '"'))]
     String {
         value: String,
+        #[derived(value.len())]
+        len: usize,
     },
 }
 
 #[test]
 fn test_number() {
-    assert_eq!(Ok(SomeConfig::Number(32)), SomeConfig::parse_complete("32"));
+    assert_eq!(Ok(TestStruct::Number(32)), TestStruct::parse_complete("32"));
 }
 
 #[test]
 fn test_numbers() {
     assert_eq!(
-        Ok(SomeConfig::Numbers(vec![32, 34, 46])),
-        SomeConfig::parse_complete("(32,34,46)")
+        Ok(TestStruct::Numbers(vec![32, 34, 46], 112)),
+        TestStruct::parse_complete("(32,34,46)")
     );
 }
 
 #[test]
 fn test_string() {
     assert_eq!(
-        Ok(SomeConfig::String {
-            value: "dummy".to_string()
+        Ok(TestStruct::String {
+            value: "dummy".to_string(),
+            len: 5,
         }),
-        SomeConfig::parse_complete("\"dummy\"")
+        TestStruct::parse_complete("\"dummy\"")
     )
 }

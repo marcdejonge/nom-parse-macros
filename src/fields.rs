@@ -16,7 +16,7 @@ pub struct Fields {
 pub fn parse_fields(fields: &mut syn::Fields) -> Result<Fields> {
     match fields {
         syn::Fields::Named(named_fields) => parse_named_fields(named_fields),
-        syn::Fields::Unnamed(unnamed_fields) => Ok(parse_unnamed_fields(unnamed_fields)),
+        syn::Fields::Unnamed(unnamed_fields) => parse_unnamed_fields(unnamed_fields),
         syn::Fields::Unit => Ok(Fields {
             is_named: false,
             fields: Vec::new(),
@@ -25,10 +25,33 @@ pub fn parse_fields(fields: &mut syn::Fields) -> Result<Fields> {
 }
 
 fn parse_named_fields(fields: &mut FieldsNamed) -> Result<Fields> {
+    parse_field_iterator(fields.named.iter_mut(), |_, field| {
+        field.ident.clone().unwrap()
+    })
+    .map(|fields| Fields {
+        is_named: true,
+        fields,
+    })
+}
+
+fn parse_unnamed_fields(fields: &mut FieldsUnnamed) -> Result<Fields> {
+    parse_field_iterator(fields.unnamed.iter_mut(), |index, _| {
+        Ident::new(&format!("field_{}", index), Span::call_site())
+    })
+    .map(|fields| Fields {
+        is_named: false,
+        fields,
+    })
+}
+
+fn parse_field_iterator<'a>(
+    fields: impl Iterator<Item = &'a mut syn::Field>,
+    get_name: impl Fn(usize, &syn::Field) -> Ident,
+) -> Result<Vec<Field>> {
     let mut result = Vec::new();
 
-    for field in fields.named.iter_mut() {
-        let mut name = field.ident.clone().unwrap();
+    for (index, field) in fields.enumerate() {
+        let mut name = get_name(index, field);
         name.set_span(Span::call_site());
         let ty = field.ty.clone();
 
@@ -45,27 +68,7 @@ fn parse_named_fields(fields: &mut FieldsNamed) -> Result<Fields> {
         }
     }
 
-    Ok(Fields {
-        is_named: true,
-        fields: result,
-    })
-}
-
-fn parse_unnamed_fields(fields: &FieldsUnnamed) -> Fields {
-    let fields = fields
-        .unnamed
-        .iter()
-        .enumerate()
-        .map(|(index, field)| {
-            let name = Ident::new(&format!("field_{}", index), Span::call_site());
-            let ty = field.ty.clone();
-            Field::Default { name, ty }
-        })
-        .collect();
-    Fields {
-        is_named: false,
-        fields,
-    }
+    Ok(result)
 }
 
 impl Field {
@@ -131,5 +134,23 @@ impl Fields {
             .iter()
             .filter_map(|field| field.generate_derived_expression())
             .collect()
+    }
+
+    pub fn create_instance_expr(&self, variant_name: Option<&Ident>) -> TokenStream {
+        let all_names = self.get_all_names();
+
+        if let Some(name) = variant_name {
+            if self.is_named {
+                quote! { Self::#name { #(#all_names),* } }
+            } else {
+                quote! { Self::#name(#(#all_names),*) }
+            }
+        } else {
+            if self.is_named {
+                quote! { Self { #(#all_names),* } }
+            } else {
+                quote! { Self(#(#all_names),*) }
+            }
+        }
     }
 }
