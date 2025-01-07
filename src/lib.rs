@@ -10,7 +10,10 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
-use syn::{parse_macro_input, Expr, Item, ItemEnum, ItemStruct, LitStr};
+use std::default::Default;
+use syn::{
+    parse_macro_input, Expr, GenericParam, Generics, Item, ItemEnum, ItemStruct, LitStr, TypeParam,
+};
 
 #[proc_macro_attribute]
 pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {
@@ -35,15 +38,14 @@ fn generate_struct_parser(attrs: TokenStream, mut object: ItemStruct) -> TokenSt
         Ok(fields) => fields,
         Err(e) => return e.to_compile_error().into(),
     };
-    let name = object.ident.clone();
-
     let expression_names = fields.get_expression_names();
     let derived_expressions = fields.get_derived_expressions();
     let create_expr = fields.create_instance_expr(None);
 
     generate_parser(
+        object.ident.clone(),
+        object.generics.clone(),
         object,
-        name,
         quote! {
             let (input, (#(#expression_names),*)) = #expression.parse(input)?;
             #(#derived_expressions)*
@@ -119,11 +121,10 @@ fn generate_enum_parser(mut object: ItemEnum) -> TokenStream {
         }
     }
 
-    let name = object.ident.clone();
-
     generate_parser(
+        object.ident.clone(),
+        object.generics.clone(),
         object,
-        name,
         quote! {
             #(#mappings)*
             nom::branch::alt((
@@ -142,14 +143,14 @@ pub fn parse_match(attrs: TokenStream, object: TokenStream) -> TokenStream {
         Ok(fields) => fields,
         Err(e) => return e.to_compile_error().into(),
     };
-    let name = object.ident.clone();
 
     match parse_string_match(&fields, literal) {
         Ok(parts) => {
             let names: Vec<_> = fields.fields.iter().map(|field| field.get_name()).collect();
             generate_parser(
+                object.ident.clone(),
+                object.generics.clone(),
                 object,
-                name,
                 quote! {
                     #(#parts)*
                     Ok((input, Self { #(#names),* }))
@@ -160,12 +161,20 @@ pub fn parse_match(attrs: TokenStream, object: TokenStream) -> TokenStream {
     }
 }
 
-fn generate_parser(object: impl ToTokens, name: Ident, content: impl ToTokens) -> TokenStream {
+fn generate_parser(
+    name: Ident,
+    generics: Generics,
+    object: impl ToTokens,
+    content: impl ToTokens,
+) -> TokenStream {
+    let (impl_generics, extra_where_predicates) = parser_generics(generics.clone());
+
     let tokens = quote! {
         #object
 
-        impl<I, E> nom_parse_trait::ParseFrom<I, E> for #name
+        impl #impl_generics nom_parse_trait::ParseFrom<I, E> for #name #generics
         where
+            #(#extra_where_predicates,)*
             E: nom::error::ParseError<I>,
             I: Clone,
             I: nom::Slice<std::ops::RangeTo<usize>> + nom::Slice<std::ops::RangeFrom<usize>> + nom::Slice<std::ops::Range<usize>>,
@@ -187,4 +196,42 @@ fn generate_parser(object: impl ToTokens, name: Ident, content: impl ToTokens) -
         }
     };
     tokens.into()
+}
+
+fn parser_generics(mut generics: Generics) -> (Generics, Vec<proc_macro2::TokenStream>) {
+    // If there are no generics, start a new one
+    if generics.params.is_empty() {
+        generics = Generics::default();
+        generics.lt_token = Some(Default::default());
+        generics.gt_token = Some(Default::default());
+    }
+
+    // Generate some extra where predicates for the generics
+    let extra_where_predicates: Vec<_> = generics
+        .params
+        .iter()
+        .flat_map(|param| {
+            if let GenericParam::Type(TypeParam { ident, .. }) = param {
+                Some(quote! { #ident: nom_parse_trait::ParseFrom<I, E> })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Add the `I` and `E` generics that the ParseFrom implementation needs
+    generics
+        .params
+        .push(GenericParam::Type(TypeParam::from(Ident::new(
+            "I",
+            Span::call_site(),
+        ))));
+    generics
+        .params
+        .push(GenericParam::Type(TypeParam::from(Ident::new(
+            "E",
+            Span::call_site(),
+        ))));
+
+    (generics, extra_where_predicates)
 }

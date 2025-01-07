@@ -253,6 +253,11 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                         }
                     }
                 }
+            } else {
+                // Assume that this is a custom function, for which all parameters need to be parsed as parsers
+                for arg in call.args.iter_mut() {
+                    update_nom_expression(arg)?;
+                }
             }
         }
 
