@@ -30,7 +30,7 @@ pub fn parse_string_match(fields: &Fields, literal: LitStr) -> Result<Vec<TokenS
     }
 
     for field in &fields.fields {
-        if let Some(expr) = field.generate_derived_expression() {
+        if let Some(expr) = field.generate_derived_expression(fields) {
             result.push(expr);
         }
     }

@@ -1,7 +1,10 @@
 use itertools::Itertools;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::{Expr, FieldsNamed, FieldsUnnamed, Result, Type};
+use std::collections::HashMap;
+use syn::punctuated::Punctuated;
+use syn::visit_mut::VisitMut;
+use syn::{Expr, FieldsNamed, FieldsUnnamed, Path, Result, Type};
 
 pub enum Field {
     Default { name: Ident, ty: Type },
@@ -95,29 +98,48 @@ impl Field {
         }
     }
 
-    pub fn generate_derived_expression(&self) -> Option<TokenStream> {
+    pub fn generate_derived_expression(&self, fields: &Fields) -> Option<TokenStream> {
         match self {
             Field::Default { .. } => None,
-            Field::Derived { name, expr, ty } => Some(quote! {
-                let #name: #ty = #expr;
-            }),
+            Field::Derived { expr, ty, .. } => {
+                let name = self.get_param_name();
+                let mut expr = expr.clone();
+                fields.rename_derive_expr(&mut expr);
+                Some(quote! {
+                    let #name: #ty = #expr;
+                })
+            }
         }
+    }
+
+    pub fn get_param_name(&self) -> Ident {
+        Ident::new(&format!("param_{}", self.get_name()), Span::call_site())
     }
 }
 
 impl Fields {
-    pub fn get_all_names(&self) -> Vec<Ident> {
-        self.fields
-            .iter()
-            .map(|field| field.get_name().clone())
-            .collect()
+    pub fn get_creation_names(&self) -> Vec<TokenStream> {
+        let transform = if self.is_named {
+            |field: &Field| {
+                let name = field.get_name();
+                let param_name = field.get_param_name();
+                quote! { #name: #param_name }
+            }
+        } else {
+            |field: &Field| {
+                let name = field.get_param_name();
+                quote! { #name }
+            }
+        };
+
+        self.fields.iter().map(transform).collect()
     }
 
     pub fn get_expression_names(&self) -> Vec<Ident> {
         self.fields
             .iter()
             .filter(|field| !matches!(field, Field::Derived { .. }))
-            .map(|field| field.get_name().clone())
+            .map(Field::get_param_name)
             .collect()
     }
 
@@ -132,31 +154,59 @@ impl Fields {
     pub fn get_derived_expressions(&self) -> Vec<TokenStream> {
         self.fields
             .iter()
-            .filter_map(|field| field.generate_derived_expression())
+            .filter_map(|field| field.generate_derived_expression(self))
             .collect()
     }
 
     pub fn create_instance_expr(&self, variant_name: Option<&Ident>) -> TokenStream {
-        let all_names = self.get_all_names();
+        let creation_names = self.get_creation_names();
 
-        if all_names.is_empty() {
-            if let Some(name) = variant_name {
-                quote! { Self::#name }
+        if creation_names.is_empty() {
+            if let Some(variant) = variant_name {
+                quote! { Self::#variant }
             } else {
                 quote! { Self }
             }
-        } else if let Some(name) = variant_name {
+        } else if let Some(variant) = variant_name {
             if self.is_named {
-                quote! { Self::#name { #(#all_names),* } }
+                quote! { Self::#variant { #(#creation_names),* } }
             } else {
-                quote! { Self::#name(#(#all_names),*) }
+                quote! { Self::#variant(#(#creation_names),*) }
             }
         } else {
             if self.is_named {
-                quote! { Self { #(#all_names),* } }
+                quote! { Self { #(#creation_names),* } }
             } else {
-                quote! { Self(#(#all_names),*) }
+                quote! { Self(#(#creation_names),*) }
             }
         }
+    }
+
+    fn rename_derive_expr(&self, expr: &mut Expr) {
+        struct RenameDerived(HashMap<Ident, Ident>);
+        impl VisitMut for RenameDerived {
+            fn visit_path_mut(&mut self, path: &mut Path) {
+                eprintln!("visit_path_mut: {:#?}", path);
+
+                for (source, target) in &self.0 {
+                    if path.is_ident(source) {
+                        path.segments = Punctuated::new();
+                        path.segments.push(syn::PathSegment {
+                            ident: target.clone(),
+                            arguments: Default::default(),
+                        });
+                    }
+                }
+            }
+        }
+
+        let mapping = self
+            .fields
+            .iter()
+            .filter(|field| !matches!(field, Field::Derived { .. }))
+            .map(|field| (field.get_name().clone(), field.get_param_name()))
+            .collect();
+
+        RenameDerived(mapping).visit_expr_mut(expr)
     }
 }
