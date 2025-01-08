@@ -186,8 +186,6 @@ impl Fields {
         struct RenameDerived(HashMap<Ident, Ident>);
         impl VisitMut for RenameDerived {
             fn visit_path_mut(&mut self, path: &mut Path) {
-                eprintln!("visit_path_mut: {:#?}", path);
-
                 for (source, target) in &self.0 {
                     if path.is_ident(source) {
                         path.segments = Punctuated::new();

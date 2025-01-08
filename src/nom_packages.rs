@@ -15,11 +15,11 @@ const NOM_FUNCTIONS: phf::Map<&'static str, (&'static str, &'static [bool])> = p
     "tag_no_case" => ("nom::bytes::complete::tag_no_case", &[false]),
     "is_not" => ("nom::bytes::complete::is_not", &[false]),
     "is_a" => ("nom::bytes::complete::is_a", &[false]),
-    "take_while" => ("nom::bytes::complete::take_while", &[true]),
-    "take_while1" => ("nom::bytes::complete::take_while1", &[true]),
-    "take_while_m_n" => ("nom::bytes::complete::take_while_m_n", &[false, false, true]),
-    "take_till" => ("nom::bytes::complete::take_till", &[true]),
-    "take_till1" => ("nom::bytes::complete::take_till1", &[true]),
+    "take_while" => ("nom::bytes::complete::take_while", &[false]),
+    "take_while1" => ("nom::bytes::complete::take_while1", &[false]),
+    "take_while_m_n" => ("nom::bytes::complete::take_while_m_n", &[false, false, false]),
+    "take_till" => ("nom::bytes::complete::take_till", &[false]),
+    "take_till1" => ("nom::bytes::complete::take_till1", &[false]),
     "take" => ("nom::bytes::complete::take", &[false]),
     "take_until" => ("nom::bytes::complete::take_until", &[false]),
     "take_until1" => ("nom::bytes::complete::take_until1", &[false]),
@@ -115,8 +115,8 @@ const NOM_FUNCTIONS: phf::Map<&'static str, (&'static str, &'static [bool])> = p
     "consumed" => ("nom::combinator::consumed", &[true]),
     "cut" => ("nom::combinator::cut", &[true]),
     "into" => ("nom::combinator::into", &[true]),
-    "success" => ("nom::combinator::success", &[false]),
-    "fail" => ("nom::combinator::fail", &[false]),
+    "success" => ("nom::combinator::success", &[]),
+    "fail" => ("nom::combinator::fail", &[]),
     // From the nom::multi module
     "many0" => ("nom::multi::many0", &[true]),
     "many1" => ("nom::multi::many1", &[true]),
@@ -209,9 +209,11 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
     if let Expr::Path(ExprPath { path, .. }) = call.func.as_mut() {
         if path.segments.len() == 1 {
             let ident = path.segments[0].ident.to_string();
+            let arguments = path.segments[0].arguments.clone();
 
             if let Some(&(nom_path, parameters)) = NOM_FUNCTIONS.get(ident.as_str()) {
                 path.segments = parse_str::<Path>(nom_path)?.segments;
+                path.segments.last_mut().unwrap().arguments = arguments;
 
                 // For the tuple and alt functions, wrap the arguments in a tuple if they are not already
                 // and handle the arguments as if they were all parsers
@@ -273,6 +275,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
 pub fn parse_path(path_expr: &mut Path) -> Result<()> {
     if path_expr.segments.len() == 1 {
         let ident = path_expr.segments[0].ident.to_string();
+        let arguments = path_expr.segments[0].arguments.clone();
 
         if let Some(&(nom_path, parameters)) = NOM_FUNCTIONS.get(ident.as_str()) {
             if !parameters.is_empty() {
@@ -286,6 +289,7 @@ pub fn parse_path(path_expr: &mut Path) -> Result<()> {
             }
 
             path_expr.segments = parse_str::<Path>(nom_path)?.segments;
+            path_expr.segments.last_mut().unwrap().arguments = arguments;
         }
     }
 

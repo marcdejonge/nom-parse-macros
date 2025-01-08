@@ -11,6 +11,8 @@ enum Command {
     B,
     #[format("c")]
     C,
+    #[format(fail::<_, (), _>)]
+    Unknown,
 }
 
 #[parse_from(separated_pair(separated_list1(",", {}), " => ", {}))]

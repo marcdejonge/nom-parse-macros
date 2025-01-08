@@ -12,7 +12,8 @@ use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
 use std::default::Default;
 use syn::{
-    parse_macro_input, Expr, GenericParam, Generics, Item, ItemEnum, ItemStruct, LitStr, TypeParam,
+    parse_macro_input, parse_quote, Expr, GenericParam, Generics, Item, ItemEnum, ItemStruct,
+    LitStr, TypeParam, WhereClause, WherePredicate,
 };
 
 #[proc_macro_attribute]
@@ -167,25 +168,15 @@ fn generate_parser(
     object: impl ToTokens,
     content: impl ToTokens,
 ) -> TokenStream {
-    let (impl_generics, extra_where_predicates) = parser_generics(generics.clone());
+    let merged_generics = parser_generics(generics.clone());
+    let (impl_generics, _, where_statement) = merged_generics.split_for_impl();
+    let (_, type_generics, _) = generics.split_for_impl();
 
     let tokens = quote! {
         #object
 
-        impl #impl_generics nom_parse_trait::ParseFrom<I, E> for #name #generics
-        where
-            #(#extra_where_predicates,)*
-            E: nom::error::ParseError<I>,
-            I: Clone,
-            I: nom::Slice<std::ops::RangeTo<usize>> + nom::Slice<std::ops::RangeFrom<usize>> + nom::Slice<std::ops::Range<usize>>,
-            I: nom::InputTake + nom::InputLength + nom::Offset + nom::AsBytes,
-            I: nom::InputIter,
-            <I as nom::InputIter>::Item: nom::AsChar + Copy,
-            <I as nom::InputIter>::IterElem: Clone,
-            I: nom::InputTakeAtPosition,
-            <I as nom::InputTakeAtPosition>::Item: nom::AsChar + Copy,
-            I: for<'a> nom::Compare<&'a [u8]>,
-            I: nom::Compare<&'static str>,
+        impl #impl_generics nom_parse_trait::ParseFrom<I, E> for #name #type_generics
+        #where_statement
         {
             fn parse(input: I) -> nom::IResult<I, Self, E> {
                 use nom::*;
@@ -198,7 +189,7 @@ fn generate_parser(
     tokens.into()
 }
 
-fn parser_generics(mut generics: Generics) -> (Generics, Vec<proc_macro2::TokenStream>) {
+fn parser_generics(mut generics: Generics) -> Generics {
     // If there are no generics, start a new one
     if generics.params.is_empty() {
         generics = Generics::default();
@@ -207,12 +198,12 @@ fn parser_generics(mut generics: Generics) -> (Generics, Vec<proc_macro2::TokenS
     }
 
     // Generate some extra where predicates for the generics
-    let extra_where_predicates: Vec<_> = generics
+    let extra_parse_from_traits: Vec<WherePredicate> = generics
         .params
         .iter()
         .flat_map(|param| {
             if let GenericParam::Type(TypeParam { ident, .. }) = param {
-                Some(quote! { #ident: nom_parse_trait::ParseFrom<I, E> })
+                Some(parse_quote! { #ident: nom_parse_trait::ParseFrom<I, E> })
             } else {
                 None
             }
@@ -233,5 +224,54 @@ fn parser_generics(mut generics: Generics) -> (Generics, Vec<proc_macro2::TokenS
             Span::call_site(),
         ))));
 
-    (generics, extra_where_predicates)
+    if generics.where_clause.is_none() {
+        generics.where_clause = Some(WhereClause {
+            where_token: Default::default(),
+            predicates: Default::default(),
+        });
+    }
+
+    let where_clause = generics.where_clause.as_mut().unwrap();
+    for extra_parse_from_traits in extra_parse_from_traits {
+        where_clause.predicates.push(extra_parse_from_traits);
+    }
+
+    where_clause
+        .predicates
+        .push(parse_quote! { I: nom::InputTake + nom::InputLength + nom::Offset + nom::AsBytes });
+
+    where_clause
+        .predicates
+        .push(parse_quote! { E: nom::error::ParseError<I> });
+    where_clause.predicates.push(parse_quote! { I: Clone });
+    where_clause.predicates.push(parse_quote! { I: nom::Slice<std::ops::RangeTo<usize>> + nom::Slice<std::ops::RangeFrom<usize>> + nom::Slice<std::ops::Range<usize>> });
+    where_clause
+        .predicates
+        .push(parse_quote! { I: nom::InputTake + nom::InputLength + nom::Offset + nom::AsBytes });
+    where_clause
+        .predicates
+        .push(parse_quote! { I: nom::InputIter });
+    where_clause
+        .predicates
+        .push(parse_quote! { <I as nom::InputIter>::Item: nom::AsChar + Copy });
+    where_clause
+        .predicates
+        .push(parse_quote! { <I as nom::InputIter>::IterElem: Clone });
+    where_clause
+        .predicates
+        .push(parse_quote! { I: nom::InputTakeAtPosition });
+    where_clause
+        .predicates
+        .push(parse_quote! { <I as nom::InputTakeAtPosition>::Item: nom::AsChar + Copy });
+    where_clause
+        .predicates
+        .push(parse_quote! { I: for<'a> nom::Compare<&'a [u8]> });
+    where_clause
+        .predicates
+        .push(parse_quote! { I: nom::Compare<&'static str> });
+    where_clause
+        .predicates
+        .push(parse_quote! { for<'a> &'a str: nom::FindToken<<I as nom::InputIter>::Item> });
+
+    generics
 }
