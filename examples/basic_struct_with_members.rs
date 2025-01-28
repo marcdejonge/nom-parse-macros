@@ -6,7 +6,7 @@ use nom::IResult;
 use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFrom;
 
-#[parse_from(separated_pair({}, tuple(space0, ",", space0), {}))]
+#[parse_from(separated_pair({}, (space0, ",", space0), {}))]
 #[derive(Debug, PartialEq)]
 struct NumberPair {
     x: u32,

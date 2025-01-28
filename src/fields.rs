@@ -6,14 +6,14 @@ use syn::punctuated::Punctuated;
 use syn::visit_mut::VisitMut;
 use syn::{Expr, FieldsNamed, FieldsUnnamed, Path, Result, Type};
 
-pub enum Field {
-    Default { name: Ident, ty: Type },
+pub enum FieldFormat {
+    Expression { name: Ident, ty: Type },
     Derived { name: Ident, ty: Type, expr: Expr },
 }
 
 pub struct Fields {
     pub(crate) is_named: bool,
-    pub(crate) fields: Vec<Field>,
+    pub(crate) fields_format: Vec<FieldFormat>,
 }
 
 pub fn parse_fields(fields: &mut syn::Fields) -> Result<Fields> {
@@ -22,7 +22,7 @@ pub fn parse_fields(fields: &mut syn::Fields) -> Result<Fields> {
         syn::Fields::Unnamed(unnamed_fields) => parse_unnamed_fields(unnamed_fields),
         syn::Fields::Unit => Ok(Fields {
             is_named: false,
-            fields: Vec::new(),
+            fields_format: Vec::new(),
         }),
     }
 }
@@ -33,7 +33,7 @@ fn parse_named_fields(fields: &mut FieldsNamed) -> Result<Fields> {
     })
     .map(|fields| Fields {
         is_named: true,
-        fields,
+        fields_format: fields,
     })
 }
 
@@ -43,14 +43,14 @@ fn parse_unnamed_fields(fields: &mut FieldsUnnamed) -> Result<Fields> {
     })
     .map(|fields| Fields {
         is_named: false,
-        fields,
+        fields_format: fields,
     })
 }
 
 fn parse_field_iterator<'a>(
     fields: impl Iterator<Item = &'a mut syn::Field>,
     get_name: impl Fn(usize, &syn::Field) -> Ident,
-) -> Result<Vec<Field>> {
+) -> Result<Vec<FieldFormat>> {
     let mut result = Vec::new();
 
     for (index, field) in fields.enumerate() {
@@ -65,43 +65,34 @@ fn parse_field_iterator<'a>(
         {
             let expr = attr.parse_args::<Expr>()?;
             field.attrs.remove(ix);
-            result.push(Field::Derived { name, ty, expr });
+            result.push(FieldFormat::Derived { name, ty, expr });
         } else {
-            result.push(Field::Default { name, ty });
+            result.push(FieldFormat::Expression { name, ty });
         }
     }
 
     Ok(result)
 }
 
-impl Field {
-    pub fn generate_expression(&self) -> Option<TokenStream> {
-        match self {
-            Field::Default { name, ty } => Some(quote! {
-                let (input, #name): (_, #ty) = nom_parse_trait::ParseFrom::parse(input)?;
-            }),
-            Field::Derived { .. } => None,
-        }
-    }
-
+impl FieldFormat {
     pub fn get_name(&self) -> &Ident {
         match self {
-            Field::Default { name, .. } => name,
-            Field::Derived { name, .. } => name,
+            FieldFormat::Expression { name, .. } => name,
+            FieldFormat::Derived { name, .. } => name,
         }
     }
 
     pub fn get_type(&self) -> &Type {
         match self {
-            Field::Default { ty, .. } => ty,
-            Field::Derived { ty, .. } => ty,
+            FieldFormat::Expression { ty, .. } => ty,
+            FieldFormat::Derived { ty, .. } => ty,
         }
     }
 
     pub fn generate_derived_expression(&self, fields: &Fields) -> Option<TokenStream> {
         match self {
-            Field::Default { .. } => None,
-            Field::Derived { expr, ty, .. } => {
+            FieldFormat::Expression { .. } => None,
+            FieldFormat::Derived { expr, ty, .. } => {
                 let name = self.get_param_name();
                 let mut expr = expr.clone();
                 fields.rename_derive_expr(&mut expr);
@@ -120,39 +111,39 @@ impl Field {
 impl Fields {
     pub fn get_creation_names(&self) -> Vec<TokenStream> {
         let transform = if self.is_named {
-            |field: &Field| {
+            |field: &FieldFormat| {
                 let name = field.get_name();
                 let param_name = field.get_param_name();
                 quote! { #name: #param_name }
             }
         } else {
-            |field: &Field| {
+            |field: &FieldFormat| {
                 let name = field.get_param_name();
                 quote! { #name }
             }
         };
 
-        self.fields.iter().map(transform).collect()
+        self.fields_format.iter().map(transform).collect()
     }
 
     pub fn get_expression_names(&self) -> Vec<Ident> {
-        self.fields
+        self.fields_format
             .iter()
-            .filter(|field| !matches!(field, Field::Derived { .. }))
-            .map(Field::get_param_name)
+            .filter(|field| !matches!(field, FieldFormat::Derived { .. }))
+            .map(FieldFormat::get_param_name)
             .collect()
     }
 
     pub fn get_expression_types(&self) -> Vec<Type> {
-        self.fields
+        self.fields_format
             .iter()
-            .filter(|field| !matches!(field, Field::Derived { .. }))
+            .filter(|field| !matches!(field, FieldFormat::Derived { .. }))
             .map(|field| field.get_type().clone())
             .collect()
     }
 
     pub fn get_derived_expressions(&self) -> Vec<TokenStream> {
-        self.fields
+        self.fields_format
             .iter()
             .filter_map(|field| field.generate_derived_expression(self))
             .collect()
@@ -199,9 +190,9 @@ impl Fields {
         }
 
         let mapping = self
-            .fields
+            .fields_format
             .iter()
-            .filter(|field| !matches!(field, Field::Derived { .. }))
+            .filter(|field| !matches!(field, FieldFormat::Derived { .. }))
             .map(|field| (field.get_name().clone(), field.get_param_name()))
             .collect();
 

@@ -1,7 +1,7 @@
 [package]
 name = "nom-parse-macros"
 description = "Procedural macros for generating parser functions for the nom libary"
-version = "0.2.0"
+version = "0.3.0"
 license = "MIT/Apache-2.0"
 keywords = ["nom", "parser", "parsable"]
 categories = ["parsing"]
@@ -43,5 +43,5 @@ proc-macro2 = "1.0"
 syn = { version = "2.0", features = ["extra-traits", "full", "visit", "visit-mut"] }
 itertools = "0.14.0"
 phf = { version = "0.11.2", features = ["macros"] }
-nom-parse-trait = "0.2.0"
-nom = "7.1.3"
+nom-parse-trait = "0.3.0"
+nom = "8.0.0"

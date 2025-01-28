@@ -18,7 +18,7 @@ fn test_single_named_field() {
 
 #[test]
 fn test_multiple_named_fields() {
-    #[parse_from(separated_pair({}, tuple(space0, ",", space0), {}))]
+    #[parse_from(separated_pair({}, (space0, ",", space0), {}))]
     #[derive(Debug, PartialEq)]
     struct Test {
         a: u32,
@@ -61,7 +61,7 @@ fn test_singe_unnamed_field() {
 
 #[test]
 fn test_multiple_unnamed_fields() {
-    #[parse_from(separated_pair({}, tuple(space0, ",", space0), {}))]
+    #[parse_from(separated_pair({}, (space0, ",", space0), {}))]
     #[derive(Debug, PartialEq)]
     struct Test(u32, i64);
 

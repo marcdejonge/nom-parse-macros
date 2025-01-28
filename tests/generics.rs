@@ -11,7 +11,7 @@ enum Command {
     B,
     #[format("c")]
     C,
-    #[format(fail::<_, (), _>)]
+    #[format(fail::<_, (), _>())]
     Unknown,
 }
 

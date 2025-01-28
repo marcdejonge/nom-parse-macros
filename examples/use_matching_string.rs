@@ -3,10 +3,10 @@
 //! the characters are matched verbatim.
 
 use nom::IResult;
-use nom_parse_macros::parse_match;
+use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFrom;
 
-#[parse_match("({},{},{})")]
+#[parse_from(match "({},{},{})")]
 #[derive(Debug, PartialEq)]
 struct Vector3 {
     x: u32,

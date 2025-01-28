@@ -1,10 +1,10 @@
 use nom::error::*;
-use nom_parse_macros::parse_match;
+use nom_parse_macros::parse_from;
 use nom_parse_trait::ParseFromExt;
 
 #[test]
 fn test_vector() {
-    #[parse_match("({},{},{})")]
+    #[parse_from(match "({},{},{})")]
     #[derive(Debug, PartialEq)]
     struct Test {
         x: u32,

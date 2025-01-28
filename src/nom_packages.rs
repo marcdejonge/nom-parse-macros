@@ -1,10 +1,9 @@
-use proc_macro2::Span;
+use crate::parse_format::generate_match_literal;
 use quote::quote_spanned;
-use syn::__private::IntoSpans;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    parse, parse_str, Expr, ExprArray, ExprCall, ExprLit, ExprPath, ExprTuple, Lit, Path, Result,
+    parse, parse_quote_spanned, parse_str, Expr, ExprCall, ExprPath, ExprTuple, Lit, Path, Result,
 };
 
 const NOM_FUNCTIONS: phf::Map<&'static str, (&'static str, &'static [bool])> = phf::phf_map! {
@@ -162,20 +161,19 @@ pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
         Expr::Call(call) => parse_call(call),
         Expr::Lit(lit_expr) => match &lit_expr.lit {
             Lit::Str(value) => {
-                *expr = generate_match_expression(value.value().as_bytes(), value.span());
+                *expr = generate_match_literal(value.value().as_bytes(), value.span());
                 Ok(())
             }
             Lit::ByteStr(value) => {
-                *expr = generate_match_expression(&value.value(), value.span());
+                *expr = generate_match_literal(&value.value(), value.span());
                 Ok(())
             }
             Lit::Byte(value) => {
-                *expr = generate_match_expression(&[value.value()], value.span());
+                *expr = generate_match_literal(&[value.value()], value.span());
                 Ok(())
             }
             Lit::Char(value) => {
-                *expr =
-                    generate_match_expression(value.value().to_string().as_bytes(), value.span());
+                *expr = generate_match_literal(value.value().to_string().as_bytes(), value.span());
                 Ok(())
             }
             _ => Err(syn::Error::new_spanned(
@@ -187,9 +185,7 @@ pub fn update_nom_expression(expr: &mut Expr) -> Result<()> {
         Expr::Tuple(ExprTuple { elems, .. }) => {
             if elems.is_empty() {
                 // An empty tuple is used as a shortcut for the ParseFrom parser
-                *expr = parse::<Expr>(
-                    quote_spanned! { elems.span() => nom_parse_trait::ParseFrom::parse }.into(),
-                )?;
+                *expr = parse_quote_spanned! { elems.span() => nom_parse_trait::ParseFrom::parse };
             } else {
                 // Tuples are assumed to be all parsers
                 for elem in elems.iter_mut() {
@@ -219,7 +215,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                 // and handle the arguments as if they were all parsers
                 if ident == "tuple" || ident == "alt" {
                     let args = call.args.clone();
-                    if !(args.len() == 1 && matches!(args[0], Expr::Tuple(_))) {
+                    if args.len() != 1 {
                         call.args = Punctuated::from(Punctuated::new());
                         call.args.push(Expr::Tuple(ExprTuple {
                             attrs: vec![],
@@ -233,10 +229,12 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                     }
                 // Nom functions without parameters should not be called, but referenced directly
                 } else if parameters.len() == 0 {
-                    return Err(syn::Error::new_spanned(
-                        call.func.clone(),
-                        format!("The function {} is a parser by itself and should be used here without parens", ident),
-                    ));
+                    if ident != "fail" {
+                        return Err(syn::Error::new_spanned(
+                            call.func.clone(),
+                            format!("The function {} is a parser by itself and should be used here without parens", ident),
+                        ));
+                    }
                 } else if parameters.len() != call.args.len() {
                     return Err(syn::Error::new_spanned(
                         call.func.clone(),
@@ -272,7 +270,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
     }
 }
 
-pub fn parse_path(path_expr: &mut Path) -> Result<()> {
+fn parse_path(path_expr: &mut Path) -> Result<()> {
     if path_expr.segments.len() == 1 {
         let ident = path_expr.segments[0].ident.to_string();
         let arguments = path_expr.segments[0].arguments.clone();
@@ -294,16 +292,4 @@ pub fn parse_path(path_expr: &mut Path) -> Result<()> {
     }
 
     Ok(())
-}
-
-pub fn generate_match_expression(value: &[u8], span: Span) -> Expr {
-    let mut array = parse_str::<ExprArray>(format!("{:?}", value).as_str()).unwrap();
-    array.bracket_token.span = span.into_spans();
-    array.elems.iter_mut().for_each(|elem| {
-        if let Expr::Lit(ExprLit { lit, .. }) = elem {
-            lit.set_span(span);
-        }
-    });
-    parse::<Expr>(quote_spanned! { span => nom::bytes::complete::tag(#array.as_ref()) }.into())
-        .unwrap()
 }

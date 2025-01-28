@@ -19,7 +19,7 @@ As a quick example, consider the following struct:
 ```rust
 use nom_parse_macros::parse_from;
 
-#[parse_from(tuple(be_32, be_u16))]
+#[parse_from((be_32, be_u16))]
 struct MyStruct {
     a: u32,
     b: u16,
