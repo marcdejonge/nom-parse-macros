@@ -3,11 +3,12 @@
 //! This macro generates a `ParseFrom` implementation for a struct or enum using the provided
 //! nom expression(s). The expression should return a tuple for the parsed fields.
 //!
-//! There are 2 separate macros available, [`parse_from()`] and [`parse_match()`].
-//! The first one is really generic and can be useful in many cases, since you have the full
-//! flexibility of nom functions and combinators. The second one is a very simple one that
-//! matches a string verbatim. This is useful when you have a very simple format that you want
-//! to parse.
+//! The [`parse_from()`] macro can be used in 2 separate ways.
+//! The first one is using an expression that results in a nom parser. This is generic and can be
+//! useful in many cases, since you have the full flexibility of nom functions and combinators.
+//! The second one is a very simple one that matches a string verbatim. You do this by starting the
+//! expression with the `match` keyword. This is useful when you have a very simple format that you
+//! want to parse.
 //!
 //! # nom functions
 //!
@@ -108,6 +109,22 @@ use quote::ToTokens;
 ///     y: u32,
 ///     #[derived(x + y)]
 ///     sum: u32,
+/// }
+/// ```
+///
+/// ## Match verbatim
+///
+/// This example shows how to match a string verbatim. This is useful when you have a very simple
+/// format that you want to parse. In this case, we match a vector inside braces. As you can see
+/// the `{}` placeholders are replaced with the corresponding field parsers.
+///
+/// ```rust
+/// use nom_parse_macros::parse_from;
+///
+/// #[parse_from(match "({}, {})")]
+/// struct Vector {
+///   x: f32,
+///   y: f32,
 /// }
 /// ```
 

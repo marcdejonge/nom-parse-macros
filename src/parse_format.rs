@@ -100,11 +100,13 @@ mod tests {
     fn test_match_expr() {
         let value = ParseFormat::Match(syn::LitStr::new("some {}", Span::call_site()));
         let expr = value.to_expr().unwrap();
-        let expected: syn::Expr = parse_quote!(( |input| {
-            let (input, _) = nom::bytes::complete::tag(b"some ".as_ref()).parse(input)?;
-            let (input, field_1) = nom_parse_trait::ParseFrom::parse(input)?;
-            return Ok((input, (field_1)));
-        }));
+        let expected: syn::Expr = parse_quote!(
+            (|input| {
+                let (input, _) = nom::bytes::complete::tag(b"some ".as_ref()).parse(input)?;
+                let (input, field_1) = nom_parse_trait::ParseFrom::parse(input)?;
+                return Ok((input, (field_1)));
+            })
+        );
         assert_eq!(expected, expr);
     }
 
@@ -131,13 +133,15 @@ mod tests {
     fn test_generate_parser_expr() {
         let value = "test {}{} test";
         let expr = generate_match_expression(&syn::LitStr::new(value, Span::call_site())).unwrap();
-        let expected: syn::Expr = parse_quote!(( |input| {
-            let (input, _) = nom::bytes::complete::tag(b"test ".as_ref()).parse(input)?;
-            let (input, field_1) = nom_parse_trait::ParseFrom::parse(input)?;
-            let (input, field_2) = nom_parse_trait::ParseFrom::parse(input)?;
-            let (input, _) = nom::bytes::complete::tag(b" test".as_ref()).parse(input)?;
-            return Ok((input, (field_1, field_2)));
-        }));
+        let expected: syn::Expr = parse_quote!(
+            (|input| {
+                let (input, _) = nom::bytes::complete::tag(b"test ".as_ref()).parse(input)?;
+                let (input, field_1) = nom_parse_trait::ParseFrom::parse(input)?;
+                let (input, field_2) = nom_parse_trait::ParseFrom::parse(input)?;
+                let (input, _) = nom::bytes::complete::tag(b" test".as_ref()).parse(input)?;
+                return Ok((input, (field_1, field_2)));
+            })
+        );
         assert_eq!(expected, expr);
     }
 
