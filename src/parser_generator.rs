@@ -176,8 +176,9 @@ fn parser_generics(generics: &Generics) -> Generics {
     }
 
     predicates.push(parse_quote! { E: nom::error::ParseError<I> });
-    predicates.push(parse_quote! { I: nom::Input + nom::AsBytes });
+    predicates.push(parse_quote! { I: nom::Input + nom::AsBytes + nom::Offset });
     predicates.push(parse_quote! { <I as nom::Input>::Item: nom::AsChar + Copy });
+    predicates.push(parse_quote! { <I as nom::Input>::Iter: Clone });
     predicates.push(parse_quote! { I: for<'a> nom::Compare<&'a [u8]> });
     predicates.push(parse_quote! { I: nom::Compare<&'static str> });
     predicates.push(parse_quote! { for<'a> &'a str: nom::FindToken<<I as nom::Input>::Item> });
