@@ -20,6 +20,10 @@ impl ParserGenerator {
 
 impl ToTokens for ParserGenerator {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let extra_where_clauses = match &self.parse_format {
+            ParseFormat::Expr(_, clauses) => clauses,
+            _ => &vec![],
+        };
         match &self.parsed_item {
             ParsedItem::Struct { object, fields } => {
                 tokens.extend(object.to_token_stream());
@@ -33,6 +37,7 @@ impl ToTokens for ParserGenerator {
                     tokens,
                     &object.ident,
                     &object.generics,
+                    extra_where_clauses,
                     quote! {
                         let (input, (#(#expression_names),*)) = #expression.parse(input)?;
                         #(#derived_expressions)*
@@ -57,6 +62,7 @@ impl ToTokens for ParserGenerator {
                     tokens,
                     &object.ident,
                     &object.generics,
+                    extra_where_clauses,
                     quote! {
                         #(#mappings)*
                         nom::branch::alt((
@@ -106,10 +112,11 @@ fn generate_parser(
     token_stream: &mut TokenStream,
     name: &Ident,
     generics: &Generics,
+    extra_where_clauses: &Vec<WherePredicate>,
     content: impl ToTokens,
 ) {
     let (_, type_generics, _) = generics.split_for_impl();
-    let parser_generics = parser_generics(&generics);
+    let parser_generics = parser_generics(&generics, extra_where_clauses);
     let (impl_generics, _, where_statement) = parser_generics.split_for_impl();
 
     token_stream.extend(quote! {
@@ -126,7 +133,7 @@ fn generate_parser(
     });
 }
 
-fn parser_generics(generics: &Generics) -> Generics {
+fn parser_generics(generics: &Generics, extra_where_clauses: &Vec<WherePredicate>) -> Generics {
     let mut generics = generics.clone();
 
     // If there are no generics, start a new one
@@ -171,6 +178,7 @@ fn parser_generics(generics: &Generics) -> Generics {
     }
 
     let predicates = &mut generics.where_clause.as_mut().unwrap().predicates;
+    predicates.extend(extra_where_clauses.iter().cloned());
     for extra_parse_from_traits in extra_parse_from_traits {
         predicates.push(extra_parse_from_traits);
     }

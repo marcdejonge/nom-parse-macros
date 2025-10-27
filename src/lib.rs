@@ -127,6 +127,25 @@ use quote::ToTokens;
 ///   y: f32,
 /// }
 /// ```
+///
+/// ## Adding extra where clauses
+///
+/// This example shows how to add extra where clauses to the generated implementation. This is useful
+/// when the default trait bounds are not sufficient for your use case. In this case, we add a bound
+/// that the type N must implement the Default trait.
+///
+/// Both the standard where clause of the struct itself as well as the extra where clause in the macro
+/// are included in the generated implementation.
+///
+/// ```rust
+/// use nom_parse_macros::parse_from;
+///
+/// #[parse_from(separated_pair({}, (space0, "->", space0), {}) where N: Default)]
+/// struct LineSegment<const D: usize, N> where N: Copy {
+///     start: Point<D, N>,
+///     end: Point<D, N>,
+/// }
+/// ```
 
 #[proc_macro_attribute]
 pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {

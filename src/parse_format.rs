@@ -7,7 +7,7 @@ use syn::{parse_quote, parse_quote_spanned, ExprBlock};
 #[derive(Debug, PartialEq)]
 pub enum ParseFormat {
     Match(syn::LitStr),
-    Expr(syn::Expr),
+    Expr(syn::Expr, Vec<syn::WherePredicate>),
     Default,
 }
 
@@ -21,7 +21,14 @@ impl Parse for ParseFormat {
             Ok(ParseFormat::Match(literal))
         } else {
             let expr = input.parse::<syn::Expr>()?;
-            Ok(ParseFormat::Expr(expr))
+            let mut extra_where_clauses = vec![];
+
+            if input.peek(syn::Token![where]) {
+                let where_clause = input.parse::<syn::WhereClause>()?;
+                extra_where_clauses = where_clause.predicates.into_iter().collect();
+            }
+
+            Ok(ParseFormat::Expr(expr, extra_where_clauses))
         }
     }
 }
@@ -39,7 +46,7 @@ impl ParseFormat {
     fn to_expr(&self) -> syn::Result<syn::Expr> {
         match self {
             ParseFormat::Match(string) => generate_match_expression(string),
-            ParseFormat::Expr(expr) => {
+            ParseFormat::Expr(expr, _) => {
                 let mut expr = expr.clone();
                 update_nom_expression(&mut expr)?;
                 Ok(expr)
@@ -112,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_expr_expr() {
-        let value = ParseFormat::Expr(parse_quote!(preceded("test", ())));
+        let value = ParseFormat::Expr(parse_quote!(preceded("test", ())), vec![]);
         let expr = value.to_expr().unwrap();
         let expected: syn::Expr = parse_quote!(nom::sequence::preceded(
             nom::bytes::complete::tag(b"test".as_ref()),
