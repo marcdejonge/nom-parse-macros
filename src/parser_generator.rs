@@ -20,9 +20,10 @@ impl ParserGenerator {
 
 impl ToTokens for ParserGenerator {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let no_clauses = vec![];
         let extra_where_clauses = match &self.parse_format {
             ParseFormat::Expr(_, clauses) => clauses,
-            _ => &vec![],
+            _ => &no_clauses,
         };
         match &self.parsed_item {
             ParsedItem::Struct { object, fields } => {
