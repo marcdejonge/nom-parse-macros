@@ -142,8 +142,8 @@ use quote::ToTokens;
 ///
 /// #[parse_from(separated_pair({}, (space0, "->", space0), {}) where N: Default)]
 /// struct LineSegment<const D: usize, N> where N: Copy {
-///     start: Point<D, N>,
-///     end: Point<D, N>,
+///     start: [N; D],
+///     end: [N; D],
 /// }
 /// ```
 
