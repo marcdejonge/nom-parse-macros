@@ -54,10 +54,8 @@ impl ToTokens for ParserGenerator {
 
                 tokens.extend(object.to_token_stream());
 
-                let (mapping_names, mappings): (Vec<_>, Vec<_>) = variants
-                    .iter()
-                    .map(|variant| generate_variant(variant))
-                    .unzip();
+                let (mapping_names, mappings): (Vec<_>, Vec<_>) =
+                    variants.iter().map(generate_variant).unzip();
 
                 generate_parser(
                     tokens,
@@ -113,11 +111,11 @@ fn generate_parser(
     token_stream: &mut TokenStream,
     name: &Ident,
     generics: &Generics,
-    extra_where_clauses: &Vec<WherePredicate>,
+    extra_where_clauses: &[WherePredicate],
     content: impl ToTokens,
 ) {
     let (_, type_generics, _) = generics.split_for_impl();
-    let parser_generics = parser_generics(&generics, extra_where_clauses);
+    let parser_generics = parser_generics(generics, extra_where_clauses);
     let (impl_generics, _, where_statement) = parser_generics.split_for_impl();
 
     token_stream.extend(quote! {
@@ -134,7 +132,7 @@ fn generate_parser(
     });
 }
 
-fn parser_generics(generics: &Generics, extra_where_clauses: &Vec<WherePredicate>) -> Generics {
+fn parser_generics(generics: &Generics, extra_where_clauses: &[WherePredicate]) -> Generics {
     let mut generics = generics.clone();
 
     // If there are no generics, start a new one

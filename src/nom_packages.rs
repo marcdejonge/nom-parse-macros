@@ -216,7 +216,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                 if ident == "tuple" || ident == "alt" {
                     let args = call.args.clone();
                     if args.len() != 1 {
-                        call.args = Punctuated::from(Punctuated::new());
+                        call.args = Punctuated::new();
                         call.args.push(Expr::Tuple(ExprTuple {
                             attrs: vec![],
                             paren_token: Default::default(),
@@ -228,7 +228,7 @@ fn parse_call(call: &mut ExprCall) -> Result<()> {
                         update_nom_expression(arg)?;
                     }
                 // Nom functions without parameters should not be called, but referenced directly
-                } else if parameters.len() == 0 {
+                } else if parameters.is_empty() {
                     if ident != "fail" {
                         return Err(syn::Error::new_spanned(
                             call.func.clone(),

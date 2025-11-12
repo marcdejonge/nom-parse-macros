@@ -149,6 +149,7 @@ impl Fields {
             .collect()
     }
 
+    #[allow(clippy::collapsible_else_if)]
     pub fn create_instance_expr(&self, variant_name: Option<&Ident>) -> TokenStream {
         let creation_names = self.get_creation_names();
 

@@ -17,10 +17,10 @@
 //! don't need a ton of use statements in your code. But there are also a couple of special cases:
 //!
 //! - `{}` or `()` will be replaced with a [`nom_parse_trait::ParseFrom::parse`] call for the
-//! corresponding field. This is useful when you are using types that have implemented the
-//! `ParseFrom` trait already.
+//!   corresponding field. This is useful when you are using types that have implemented the
+//!   `ParseFrom` trait already.
 //! - Strings, bytes strings and characters will be translated to match the input verbatim using
-//! the [`nom::bytes::complete::tag`] function.
+//!   the [`nom::bytes::complete::tag`] function.
 //!
 //! # Input types that are supported
 //!
@@ -34,13 +34,13 @@
 //! # Known limitations
 //!
 //! - When your try to use a custom parser combinator, the nom function parser will try to change
-//! all parameters to be nom parsers. This is useful in many cases, but when you need to pass in
-//! a normal string for example, it won't work. In these cases, you can define a separate function
-//! to wrap the call. I'm not sure how to fix that right now, but I'm open to suggestions.
+//!   all parameters to be nom parsers. This is useful in many cases, but when you need to pass in
+//!   a normal string for example, it won't work. In these cases, you can define a separate function
+//!   to wrap the call. I'm not sure how to fix that right now, but I'm open to suggestions.
 //!
 //! - Since the generated input type is very generic, all functions that you want to use in the
-//! nom expression should also be very generic. In the future I might add a way to specify if you
-//! want to generate a specific input type, but for now it's not possible.
+//!   nom expression should also be very generic. In the future I might add a way to specify if you
+//!   want to generate a specific input type, but for now it's not possible.
 
 extern crate proc_macro;
 mod fields;
@@ -146,7 +146,6 @@ use quote::ToTokens;
 ///     end: [N; D],
 /// }
 /// ```
-
 #[proc_macro_attribute]
 pub fn parse_from(attrs: TokenStream, object: TokenStream) -> TokenStream {
     let parse_format = syn::parse_macro_input!(attrs as ParseFormat);
