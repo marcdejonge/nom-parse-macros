@@ -76,7 +76,7 @@ impl ToTokens for ParserGenerator {
 
 fn generate_variant(variant: &ParsedVariant) -> (Ident, TokenStream) {
     let mapping_name = Ident::new(
-        &format!("map_{}", variant.name.to_string().to_lowercase()),
+        &format!("parse_{}", variant.name.to_string().to_lowercase()),
         Span::call_site(),
     );
     let format_expr = variant.format.to_token_stream();
@@ -119,6 +119,8 @@ fn generate_parser(
     let (impl_generics, _, where_statement) = parser_generics.split_for_impl();
 
     token_stream.extend(quote! {
+        #[automatically_derived]
+        #[allow(unused)]
         impl #impl_generics nom_parse_trait::ParseFrom<I, E> for #name #type_generics
         #where_statement
         {
