@@ -18,11 +18,9 @@ where
 {
     move |mut input: I| {
         let mut array = [T::default(); D];
-        for ix in 0..D {
-            let (rest, _) = prefix.parse(input)?;
-            let (rest, value) = T::parse(rest)?;
-            input = rest;
-            array[ix] = value;
+        for val in &mut array {
+            (input, _) = prefix.parse(input)?;
+            (input, *val) = T::parse(input)?;
         }
         Ok((input, array))
     }
