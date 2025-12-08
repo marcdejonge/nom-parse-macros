@@ -30,6 +30,7 @@ impl ToTokens for ParserGenerator {
                 tokens.extend(object.to_token_stream());
 
                 let expression_names = fields.get_expression_names();
+                let expression_types = fields.get_expression_types();
                 let expression = &self.parse_format;
                 let derived_expressions = fields.get_derived_expressions();
                 let create_expr = fields.create_instance_expr(None);
@@ -40,7 +41,7 @@ impl ToTokens for ParserGenerator {
                     &object.generics,
                     extra_where_clauses,
                     quote! {
-                        let (input, (#(#expression_names),*)) = #expression.parse(input)?;
+                        let (input, (#(#expression_names),*)) : (_, (#(#expression_types),*)) = #expression.parse(input)?;
                         #(#derived_expressions)*
                         Ok((input, #create_expr))
                     },
